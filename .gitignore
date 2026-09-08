@@ -1,0 +1,30 @@
+# Node / Vite Frontend
+node_modules/
+dist/
+.vite/
+*.local
+
+# Umgebungsvariablen / Secrets
+.env
+.env.*
+!.env.example
+
+# PHP Backend Konfiguration (enthaelt DB-Zugangsdaten und Token-Secrets,
+# siehe 02_Technische_Spezifikation_PHP.md, "Deployment")
+api/config.php
+backend/config.php
+config.php
+
+# Logs (Fehlerlogs, Rate-Limit-Dateien, siehe lib/auth.php checkRateLimit())
+logs/
+*.log
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Build-Artefakte
+*.zip
+*.tar.gz
