@@ -7,10 +7,13 @@
 # Voraussetzung: Gleiche Repository-Secrets wie beim Backend-Deploy
 # (STRATO_SFTP_HOST, STRATO_SFTP_USER, STRATO_SFTP_PASSWORD).
 #
-# WICHTIG: --base=/stadtrallye/team/ bzw. /stadtrallye/admin/ sorgt dafuer,
-# dass Vite die Asset-Pfade (JS/CSS) korrekt fuer den Unterordner statt fuer
-# das Domain-Root generiert. Falls sich der Zielordner auf dem Server je
-# aendert, muss dieser Wert HIER angepasst werden (nicht nur remote_path).
+# WICHTIG: Der Ordner /stadtrallye ist auf dem STRATO-Server das Document-Root
+# der Domain selbst, KEIN URL-Unterpfad. Dateisystem-Pfad /stadtrallye/team
+# entspricht der URL joe-miebach.de/team (nicht joe-miebach.de/stadtrallye/team).
+# Deshalb muss --base beim Vite-Build nur /team/ bzw. /admin/ sein, waehrend
+# remote_path weiterhin den vollen Dateisystem-Pfad /stadtrallye/team bzw.
+# /stadtrallye/admin nutzt. Falls sich der Zielordner auf dem Server je
+# aendert, muessen BEIDE Werte (base und remote_path) angepasst werden.
 
 name: Deploy Frontend via SFTP
 
@@ -39,7 +42,7 @@ jobs:
 
       - name: Produktions-Build
         working-directory: frontend/team-app
-        run: npm run build -- --base=/stadtrallye/team/
+        run: npm run build -- --base=/team/
         env:
           VITE_API_BASE_URL: https://joe-miebach.de/api
 
@@ -71,7 +74,7 @@ jobs:
 
       - name: Produktions-Build
         working-directory: frontend/admin-app
-        run: npm run build -- --base=/stadtrallye/admin/
+        run: npm run build -- --base=/admin/
         env:
           VITE_API_BASE_URL: https://joe-miebach.de/api
           # Platzhalter bis zur Rallye-Auswahl im Admin-UI (siehe .env.example-Kommentar).
