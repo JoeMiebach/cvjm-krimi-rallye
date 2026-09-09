@@ -1,215 +1,140 @@
-# Technische Spezifikation: Viking-Schatz Rallye (PHP / MySQL / Hosting Basic) – Version 3
+# Technische Spezifikation: Viking-Schatz Rallye (PHP / MySQL / Hosting Basic) - Version 3
 
 **Ersetzt:** 02_Technische_Spezifikation_PHP.md (v2.0, bitte archivieren)
-**Stand:** 09.09.2026, 18:00 Uhr (Phase F abgeschlossen)
+**Stand:** 10.09.2026, 01:40 Uhr (Bugfix-Session Rangliste/Chat/Hinweise/Lead-only-Stationen)
 
 ## System-Architektur (aktualisiert)
 
 ```
 +-------------------------------------------------------+
 |  Frontend: ZWEI getrennte React+Vite+Tailwind-Apps     |
-|  - team-app/   (Jugendteams)                            |
-|  - admin-app/  (Spielleiter/Beobachter)                 |
-|  - Statischer Build je App, per SFTP auf Hosting Basic   |
-|  - react-router-dom (Routing), react-leaflet (Karten)    |
-|  - PWA-faehig (Service Worker, Offline-Cache)            |
-|  - QR-Code-Scanner (html5-qrcode Bibliothek)             |
-|  - Geolocation API (GPS-Tracking)                        |
-|  - Polling alle 10s statt WebSocket                       |
+|  - frontend/team-app/   (Jugendteams)                  |
+|  - frontend/admin-app/  (Spielleiter/Beobachter)       |
+|  - react-router-dom (Routing), react-leaflet (Karten)  |
+|  - PWA-faehig, QR-Scanner, Geolocation API             |
+|  - Polling alle 10s statt WebSocket                    |
 +-------------------------------------------------------+
                         |  HTTPS (Fetch/AJAX)
 +-------------------------------------------------------+
 |  Backend (PHP 8.3, klassisches Shared-Hosting)         |
-|  - REST API (/api/*.php Endpunkte)                      |
-|  - Token-Auth ueber Startcode (Team) / Login (Admin)     |
-|  - Kein Dauerprozess, keine WebSockets, kein Cronjob     |
+|  - REST API (/api/*.php Endpunkte)                     |
+|  - Token-Auth ueber Startcode (Team) / Login (Admin)   |
 +-------------------------------------------------------+
                         |
 +-------------------------------------------------------+
-|  MySQL/MariaDB (STRATO SSD-Datenbank)                   |
-|  - Multi-Rallye-Schema (rallye_id auf allen Tabellen)    |
-|  - InnoDB, Foreign Keys, Indizes fuer Performance         |
+|  MySQL/MariaDB (STRATO SSD-Datenbank)                  |
+|  - Multi-Rallye-Schema, Migrationen 001-004            |
 +-------------------------------------------------------+
 ```
 
-### Repository-Struktur (Ist-Stand)
+### Repository-Struktur (Ist-Stand, 10.09.2026)
 
 ```
 cvjm-krimi-rallye/
 ├── .gitignore
 ├── README.md
 ├── docs/
-├── backend/api/
-│   ├── bootstrap.php, config.php.example
-│   ├── leaderboard.php, puzzles.php, stations.php
-│   ├── lib/ (cleanup.php, story.php, etc.)
-│   ├── admin/ (rallyes.php, teams.php, stations.php, puzzles.php,
-│   │           story-nodes.php, story-node-options.php, suspects.php,
-│   │           photo-submissions.php, broadcast-templates.php, etc.)
-│   ├── auth/ (check-code.php, register.php, login.php, admin-login.php)
-│   ├── puzzles/ (hint.php, submit.php)
-│   ├── stations/ (unlock.php)
-│   ├── system/ (cleanup.php)
-│   └── team/ (me.php, chat.php, chat/respond.php, open-tasks.php,
-│              suspects.php, photos/submit.php, avatars/upload.php, etc.)
+├── backend/
+│   ├── api/ (bootstrap.php, leaderboard.php, admin/leaderboard.php, puzzles.php,
+│   │   stations.php, lib/, admin/, auth/, puzzles/, stations/, system/, team/)
+│   └── migrations/ (001_ermittler_chat_phase_a.sql, 002_ermittler_chat_phase_e.sql,
+│       003_ermittler_chat_phase_f.sql, 004_lead_only_station_unlock.sql)
 └── frontend/
     ├── team-app/src/ (screens/, context/, api/client.js, offline/queue.js)
     └── admin-app/src/ (screens/, context/, api/client.js)
 ```
 
-Beide Frontend-Apps nutzen `react-router-dom` fuer Routing und `react-leaflet` fuer Karten.
+**WICHTIG (korrigiert 09.09.2026 abends):** Frontend-Dateien gehoeren unter `frontend/team-app/`
+und `frontend/admin-app/`, NICHT auf Repo-Root-Ebene (`team-app/`, `admin-app/`). Ein
+Commit dieser Nacht hatte faelschlich die Root-Ebene verwendet und wurde vom Projektinhaber
+manuell korrigiert.
 
 ---
 
-## Authentifizierung (unveraendert aus v2)
+## KRITISCH: discovery_mode-Naming-Inkonsistenz (10.09.2026, NOCH OFFEN)
 
-Startcode-basiertes Team-Login, E-Mail/Passwort-Admin-Login, HMAC-signierte Session-Tokens.
+Schema-Wahrheit (siehe `03_Datenbank_Schema_MySQL_MultiRallye_v4.sql`):
+`stations.discovery_mode ENUM('lead_only','proximity','both')` -- MIT Unterstrich.
 
----
-
-## Polling statt WebSockets (unveraendert aus v2)
-
-Leaderboard/Broadcasts/Admin-Live-Ansicht/Chat: 10s Polling. GPS-Geofence-Check: 20–30s Polling.
-
----
-
-## Geofencing-Logik (unveraendert aus v2)
-
-```php
-function calculateDistance(float $lat1, float $lon1, float $lat2, float $lon2): float {
-    $R = 6371000;
-    $phi1 = deg2rad($lat1);
-    $phi2 = deg2rad($lat2);
-    $deltaPhi = deg2rad($lat2 - $lat1);
-    $deltaLambda = deg2rad($lon2 - $lon1);
-    $a = sin($deltaPhi / 2) ** 2 + cos($phi1) * cos($phi2) * sin($deltaLambda / 2) ** 2;
-    $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
-    return $R * $c;
-}
-```
+In der Bugfix-Session vom 09.09.2026 abends wurde in
+`frontend/admin-app/src/screens/StationsEditorScreen.jsx` (Dropdown-Werte) und
+`frontend/team-app/src/screens/StationsMapScreen.jsx` (Filterlogik) faelschlich
+`'leadonly'` OHNE Unterstrich verwendet. Muss in beiden Dateien auf `'lead_only'`
+korrigiert werden, sonst funktioniert weder das Anlegen noch die Kartenfilterung von
+lead-only-Stationen zuverlaessig.
 
 ---
 
-## Lazy Cleanup der Standortdaten (KORRIGIERT in v3)
+## Authentifizierung / Polling / Geofencing (unveraendert aus v2)
 
-**Problem in v2:** loeschte Positionsdaten ALLER Teams sofort nach `game_end_time`.
+Siehe v2 fuer vollstaendige Beschreibung. Polling: 10s (Leaderboard/Chat/Broadcasts),
+20-30s (GPS-Geofence).
 
-**Korrigierte Funktion** (`backend/api/lib/cleanup.php`):
+---
 
-```php
-function cleanupExpiredPositions(PDO $pdo, int $maxAgeHours = 4): int {
-    $stmt = $pdo->prepare(
-        "UPDATE teams
-         SET current_latitude = NULL, current_longitude = NULL, last_position_update = NULL
-         WHERE last_position_update IS NOT NULL
-           AND last_position_update < (NOW() - INTERVAL ? HOUR)"
-    );
-    $stmt->execute([$maxAgeHours]);
-    return $stmt->rowCount();
-}
-```
+## Lazy Cleanup der Standortdaten (unveraendert aus v3)
 
-Bereinigung jetzt altersbasiert (Standard 4h), nicht mehr an `game_end_time` gekoppelt.
+Altersbasiert (Standard 4h), externer Cron-Trigger (`GET /system/cleanup.php`) als
+Sicherheitsnetz.
+
+---
+
+## Rangliste (Bugfix 09.09.2026 abends / 10.09.2026)
+
+Die DB-View `leaderboard` liefert die Spalten `team_id`, `rallye_id`, `team_name`,
+`avatar_url`, `stations_completed`, `total_points`, `total_hints_used`, `started_at`,
+`last_activity`, `current_latitude`, `current_longitude`. Sowohl
+`backend/api/leaderboard.php` (Team-Endpunkt) als auch `backend/api/admin/leaderboard.php`
+(Admin-/Beobachter-Endpunkt) selektieren jetzt explizit `team_id, team_name,
+stations_completed, total_points, total_hints_used` mit expliziter
+`ORDER BY total_points DESC, started_at ASC` (MySQL garantiert die ORDER BY einer VIEW
+bei aeusserer WHERE-Klausel nicht zuverlaessig). Beide Frontend-`LeaderboardScreen.jsx`
+(Team- und Admin-App) lesen `result.leaderboard` (nicht `result.ranking`) und die obigen
+Feldnamen.
+
+---
+
+## Hinweis-Mechanik / Punkteabzug (korrigiert 09.09.2026 abends)
+
+`POST /puzzles/hint.php` liefert ausschliesslich den Hinweistext und `hint_penalty`
+zurueck, OHNE Seiteneffekte. Die eigentliche Buchung erfolgt bei `POST
+/puzzles/submit.php`: das Frontend (`PuzzlesScreen.jsx`) merkt sich pro Raetsel lokal,
+ob ein Hinweis angefordert wurde, und sendet `hint_used: true` beim naechsten
+Loesungsversuch mit. `submit.php` reduziert `points_earned` entsprechend, und der
+DB-Trigger `update_team_progress_after_attempt` berechnet `team_progress.total_points`
+und `total_hints_used` bei jeder richtigen Antwort komplett neu aus der Summe aller
+`team_attempts`-Zeilen des Teams. Ein zwischenzeitlicher Versuch, den Abzug bereits in
+`hint.php` vorzunehmen, wurde wieder zurueckgesetzt (haette zu Doppelabzug gefuehrt).
+
+---
+
+## Lead-only-Stationen ueber Chat freischalten (NEU, 09.09.2026 abends)
+
+`story_node_options.unlocks_station_id` (Migration 004) erlaubt es, dass eine korrekte
+Chat-Antwort zusaetzlich eine Station freischaltet: `backend/api/team/chat/respond.php`
+legt bei gesetztem `unlocks_station_id` einen Eintrag in `station_unlocks` mit
+`unlock_source='chat'` an (Migration 004 erweitert das ENUM entsprechend). Team-seitig
+zeigt `backend/api/stations.php` seit diesem Fix zusaetzlich `discovery_mode` in der
+Response, damit `StationsMapScreen.jsx` `discovery_mode='lead_only'`-Stationen erst nach
+Freischaltung anzeigen kann (siehe kritischen Naming-Bug oben -- Funktion aktuell noch
+nicht zuverlaessig).
 
 ---
 
 ## Sicherheitskonzept (ergaenzt)
 
 PDO Prepared Statements, bcrypt-Passworthashing, HMAC-signierte Tokens.
-
-**NEU – Pflicht-Regel fuer Secrets:** `config.php`/`config.local.php` MUESSEN in
-`.gitignore` stehen. Bei versehentlichem Commit: vollstaendiger Git-History-Rewrite
-PLUS Rotation aller betroffenen Zugangsdaten (DB-Passwort, `token_secret`, `cleanup_secret`).
+`config.php`/`config.local.php` MUESSEN in `.gitignore` stehen.
 
 ---
 
 ## Deployment (STRATO Hosting Basic)
 
-Beide Frontends (`team-app`, `admin-app`) werden separat gebaut (`npm run build`) und per
-SFTP in getrennte Verzeichnisse hochgeladen; Backend unveraendert nach `/api`.
-
-**SPA-Rewrite-Pflicht:** Beide Apps nutzen `react-router-dom` mit `BrowserRouter`
-(`basename="/admin"` bzw. `"/team"`) und erzeugen damit rein clientseitige Routen.
-Fix: `public/.htaccess` in beiden Vite-Projekten.
-
-**NACHTRAG (09.09.2026, 13:20 Uhr) – Workflow-Fix:** Deploy-Action matched bei Wildcard-Glob
-`dist/*` KEINE Dotfiles. Fix: zusaetzlicher Einzeldatei-Upload-Schritt pro App.
-
-**NACHTRAG (09.09.2026, 13:41 Uhr) – fehlendes `basename` in team-app:** `basename="/team"`
-ergaenzt.
+Beide Frontends (`frontend/team-app`, `frontend/admin-app`) werden separat gebaut
+(`npm run build`) und per SFTP hochgeladen. SPA-Rewrite via `.htaccess` (siehe v3
+fuer Details zum `basename`-Fix).
 
 ---
 
-## Story-Hinweis-Mechanik (RESOLVED, 09.09.2026)
-
-- `puzzles.story_clue_text` (nullable) traegt den Hinweistext pro Raetsel.
-- `POST /puzzles/submit.php` liefert den Hinweis bei korrekter Antwort sofort im Response
-  (`story_clue`) UND schreibt ihn dauerhaft in `team_story_clues`.
-- `GET /team/clues.php` liest ausschliesslich aus `team_story_clues`.
-- Beide Tabellen/Felder existierten bereits im produktiven Live-Schema.
-
----
-
-## Ermittler-Chat-System (NEU, Phase A–F abgeschlossen)
-
-Das Ermittler-Chat-System ersetzt die alte "Ermittlungsakte" vollstaendig. Teams chatten mit
-Freya Lindqvist (Kriminalbeamte) und erhalten ueber den Chat:
-- Story-Informationen
-- Aufgaben (Stationen loesen, Puzzles, Fotos einreichen)
-- Interaktive Entscheidungen (Buttons, Text, Zahl)
-
-### Chat-Architektur
-
-- Jeder Chat-Knoten (`story_nodes`) hat einen `node_key` (z.B. 'intro', 'suspect_erik')
-- `response_type` bestimmt die Eingabe: `buttons`, `text`, `number`, `puzzle_ref`, `photo_ref`, `none`
-- `chat_deliveries` trackt pro Team, welcher Knoten geliefert + beantwortet wurde
-- Bei `buttons`: `story_node_options` mit `next_node_key` + `is_correct`
-
-### Antworttypen
-
-| Typ | Beschreibung | Beispiel |
-|-----|--------------|----------|
-| `buttons` | Team klickt eine Option | "Wen willst du anklagen?" → Erik, Lena, Niemand |
-| `text` | Freie Texteingabe | "Gib das Codewort ein" |
-| `number` | Zahleneingabe | "Wie viele Schritte waren es?" |
-| `puzzle_ref` | Verweis auf Rätsel | "Loese zuerst das Stations-Rä±±tsel" |
-| `photo_ref` | Foto-Upload | "Mache ein Foto vom Tatort" |
-| `none` | Nur Info, keine Antwort | "Hier ist ein Hinweis..." |
-
-### Medien (Phase F)
-
-- `story_nodes.media_type` + `media_url`: Audio/Video-Clips, unabhaengig von `response_type`
-- Wird im Chat mit nativen `<audio>`/`<video>`-Playern gerendert
-
-### Verdä±±chtige-System (Phase C)
-
-- `suspects`-Tabelle mit `is_culprit`-Flag
-- Bei falscher Anklage: `reaction_text` wird angezeigt
-
-### Foto-Einreichungen (Phase E)
-
-- `photo_submissions`-Tabelle
-- Admin prueft im Backend und vergibt Punkte
-
-### Avatare (Phase F)
-
-- `teams.avatar_url`
-- Upload ueber `/api/team/avatars/upload.php`
-- Avatar wird im Chat-Header angezeigt
-
-### Offline-Warteschlange (Phase F)
-
-- `src/offline/queue.js` (IndexedDB)
-- Speichert `respond`- und `photo`-Aktionen bei Netzwerkfehler
-- Retry beim `online`-Event
-
-### Admin-UI
-
-- Story-Knoten, Optionen, Verdä±±chtige: CRUD im Admin-Bereich
-- Foto-Einreichungen: Review + Punktevergabe
-- Broadcast-Vorlagen: CRUD (API vorhanden, UI teilweise)
-
----
-
-**Erstellt:** 31.08.2026 (v1 Node/VPS), 31.08.2026 (v2 PHP/MySQL), 09.09.2026 (v3 Code-Abgleich, Phase F abgeschlossen)
-**Version:** 3.0
+**Erstellt:** 31.08.2026 (v1), 31.08.2026 (v2), 09.09.2026 (v3), 10.09.2026 (Bugfix-Session)
+**Version:** 3.1

@@ -1,7 +1,7 @@
-# API-Spezifikation: Viking-Schatz Rallye (PHP / Hosting Basic) – Version 3
+# API-Spezifikation: Viking-Schatz Rallye (PHP / Hosting Basic) - Version 3
 
 **Ersetzt:** 04_API_Spezifikation_PHP.md (v2.0, bitte archivieren)
-**Stand:** 09.09.2026, 18:00 Uhr (Phase F abgeschlossen)
+**Stand:** 10.09.2026, 01:40 Uhr (Phase F + Bugfix-Session ergaenzt)
 
 ## Basis-URL
 
@@ -23,15 +23,34 @@ https://deine-domain.de/api
 | Methode | Endpunkt | Beschreibung |
 |---|---|---|
 | GET | /team/me.php | Eigene Team-Daten (inkl. avatar_url) |
-| GET | /stations.php?rallye_id= | Stationen inkl. Freischaltstatus |
+| GET | /stations.php?rallye_id= | Stationen inkl. Freischaltstatus UND discovery_mode |
 | POST | /stations/unlock.php | QR-Freischaltung |
 | POST | /team/check-geofence.php | GPS-Position senden, GPS-Stationen pruefen |
 | GET | /puzzles.php?station_id= | Raetsel einer Station |
-| POST | /puzzles/hint.php | Hinweis anfordern |
-| POST | /puzzles/submit.php | Antwort einreichen |
+| POST | /puzzles/hint.php | Hinweis anfordern (KEINE Punktbuchung, siehe unten) |
+| POST | /puzzles/submit.php | Antwort einreichen (inkl. hint_used-Punktabzug) |
 | GET | /team/progress.php | Eigener Fortschritt |
-| GET | /leaderboard.php?rallye_id= | Rangliste |
+| GET | /leaderboard.php?rallye_id= | Rangliste -- liefert `{leaderboard: [...]}` mit Feldern
+  `team_id, team_name, stations_completed, total_points, total_hints_used` |
 | GET | /team/broadcasts.php?since= | Neue Broadcasts |
+
+**Hinweis-Mechanik (korrigiert 09.09.2026 abends):** `/puzzles/hint.php` hat KEINE
+Seiteneffekte mehr. Der Punktabzug erfolgt ausschliesslich in `/puzzles/submit.php`
+ueber das vom Frontend mitgesendete Feld `hint_used: true`.
+
+## Admin-Endpunkte
+
+Grundlegende Endpunkte (`/admin/dashboard.php`, `/admin/rallyes.php`, `/admin/teams.php`,
+`/admin/stations.php`, `/admin/puzzles.php`, `/admin/broadcast.php`, `/admin/leaderboard.php`,
+`/admin/positions.php`, Spielsteuerung unter `/admin/game/*`, `/admin/start-codes.php`).
+
+`GET /admin/leaderboard.php?rallye_id=` liefert `{leaderboard: [...]}` mit denselben
+Feldern wie der Team-Endpunkt (siehe oben), mit expliziter `ORDER BY total_points DESC,
+started_at ASC`.
+
+`POST /admin/broadcast.php` erwartet `target_team_ids` als JSON-**Array** numerischer
+IDs (nicht als kommagetrennten String) -- `is_array($body['target_team_ids'])` wird
+serverseitig geprueft.
 
 ## Ermittler-Chat-Endpunkte (siehe 05_Technische_Spezifikation_Ermittler_Chat_v1.md)
 
@@ -40,36 +59,29 @@ https://deine-domain.de/api
 | Methode | Endpunkt | Beschreibung | Phase |
 |---|---|---|---|
 | GET | /team/chat.php | Vollstaendiger Chat-Verlauf inkl. offener Antwortoptionen | A |
-| POST | /team/chat/respond.php | Antwort auf einen Knoten (Button-Wahl/Text/Zahl) einreichen | A/C |
+| POST | /team/chat/respond.php | Antwort einreichen; speichert bei Buttons das Label (nicht die ID) als team_response; kann zusaetzlich unlocked_station_id zurueckgeben | A/C |
 | GET | /team/open-tasks.php | Alle unbeantworteten Chat-Aufgaben des Teams | A |
-| GET | /team/suspects.php | Bisher entdeckte Verdä±±chtige des Teams (ohne is_guilty) | C |
-| POST | /team/photos/submit.php | Foto-Upload fuer photo_ref-Knoten (multipart/form-data, JPEG/PNG/WebP, max. 8 MB) | E |
-| POST | /team/avatars/upload.php | Avatar-Upload (multipart/form-data, JPEG/PNG/WebP, max. 2 MB) | F |
+| GET | /team/suspects.php | Bisher entdeckte Verdaechtige des Teams (ohne is_guilty) | C |
+| POST | /team/photos/submit.php | Foto-Upload fuer photo_ref-Knoten (multipart/form-data, max. 8 MB) | E |
+| POST | /team/avatars/upload.php | Avatar-Upload (multipart/form-data, max. 2 MB) | F |
 
 ### Admin-Endpunkte
 
 | Methode | Endpunkt | Beschreibung | Phase |
 |---|---|---|---|
-| GET/POST/PUT/DELETE | /admin/story-nodes.php | CRUD fuer Chat-Knoten | A |
-| GET/POST/PUT/DELETE | /admin/story-node-options.php | CRUD fuer Antwortoptionen | A |
-| GET/POST/PUT/DELETE | /admin/suspects.php | CRUD fuer Verdä±±chtige | A |
-| GET | /admin/photo-submissions.php?rallye_id= | Liste aller Foto-Einsendungen einer Rallye | E |
-| POST | /admin/photo-submissions/award.php | Punkte fuer eine Foto-Einsendung vergeben | E |
+| GET/POST/PUT/DELETE | /admin/story-nodes.php | CRUD fuer Chat-Knoten (inkl. media_type/media_url) | A/F |
+| GET/POST/PUT/DELETE | /admin/story-node-options.php | CRUD fuer Antwortoptionen (inkl. unlocks_station_id) | A/F |
+| GET/POST/PUT/DELETE | /admin/suspects.php | CRUD fuer Verdaechtige | A |
+| GET | /admin/photo-submissions.php?rallye_id= | Liste aller Foto-Einsendungen | E |
+| POST | /admin/photo-submissions/award.php | Punkte fuer Foto-Einsendung vergeben (nur einmal) | E |
 | GET/POST/PUT/DELETE | /admin/broadcast-templates.php | CRUD fuer Eilmeldungs-Vorlagen | F |
 
-Implementiert in:
-- `backend/api/team/chat.php`, `backend/api/team/chat/respond.php`, `backend/api/team/open-tasks.php`,
-  `backend/api/team/suspects.php`, `backend/api/team/photos/submit.php`, `backend/api/team/avatars/upload.php`
-- `backend/api/admin/story-nodes.php`, `backend/api/admin/story-node-options.php`, `backend/api/admin/suspects.php`,
-  `backend/api/admin/photo-submissions.php`, `backend/api/admin/photo-submissions/award.php`,
-  `backend/api/admin/broadcast-templates.php`
-
-## Admin-Endpunkte (Grundlagen)
-
-Grundlegende Endpunkte (`/admin/dashboard.php`, `/admin/rallyes.php`, `/admin/teams.php`,
-`/admin/stations.php`, `/admin/puzzles.php`, `/admin/broadcast.php`, `/admin/leaderboard.php`,
-`/admin/positions.php`, Spielsteuerung unter `/admin/game/*`, `/admin/start-codes.php`)
-unveraendert -- siehe v2/v3 fuer vollstaendige Tabellen.
+Implementiert in `backend/api/team/chat.php`, `backend/api/team/chat/respond.php`,
+`backend/api/team/open-tasks.php`, `backend/api/team/suspects.php`,
+`backend/api/team/photos/submit.php`, `backend/api/team/avatars/upload.php`,
+`backend/api/admin/story-nodes.php`, `backend/api/admin/story-node-options.php`,
+`backend/api/admin/suspects.php`, `backend/api/admin/photo-submissions.php`,
+`backend/api/admin/photo-submissions/award.php`, `backend/api/admin/broadcast-templates.php`.
 
 ## Beobachter-Endpunkte / System-Endpunkt / Fehlercodes
 
@@ -77,5 +89,5 @@ Unveraendert aus v2 -- siehe dort fuer vollstaendige Tabellen.
 
 ---
 
-**Erstellt:** 31.08.2026 (v1), 31.08.2026 (v2), 09.09.2026 (v3, Phase F abgeschlossen)
-**Version:** 3.0
+**Erstellt:** 31.08.2026 (v1), 31.08.2026 (v2), 09.09.2026 (v3), 10.09.2026 (Bugfix-Session)
+**Version:** 3.1
