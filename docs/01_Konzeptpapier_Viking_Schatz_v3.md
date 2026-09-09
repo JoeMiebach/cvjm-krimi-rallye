@@ -3,208 +3,123 @@
 ## Eine interaktive Krimi-Stadtrallye fuer Jugendfreizeiten
 
 **Ersetzt:** 01_Konzeptpapier_Viking_Schatz_v2.md (v2, bitte archivieren)
-**Stand:** 09.09.2026, 15:12 Uhr (Nebenpfad-Mechanik final ausgestaltet -- Konzeptphase abgeschlossen)
-**Status dieser Version:** KONZEPTIONELL -- noch NICHT implementiert. Dieses Dokument haelt den
-gemeinsam erarbeiteten Stand der Spielkonzept-Weiterentwicklung fest (Ermittler-Chat statt
-reiner Stationsliste). Backend/Datenbank/Frontend aus v2 (Rallyes, Stationen, Raetsel,
-story_clue-Mechanik) sind weiterhin die aktuell PRODUKTIVE Implementierung. Die technische
-Spezifikation fuer die Umsetzung folgt als separates Dokument.
+**Stand:** 09.09.2026, 18:00 Uhr (Konzeptphase abgeschlossen, technische Umsetzung Phase A–F implementiert)
+**Status:** KONZEPTIONELL ABGESCHLOSSEN, TECHNISCHE UMSETZUNG VOLLSTAENDIG (Phase A–F)
 
 ---
 
 ## Projekt-Uebersicht (unveraendert)
 
 | Parameter | Wert |
-|-----------|------|
+|---|---|
 | **Titel** | Der verschwundene Viking-Schatz |
-| **Zielgruppe** | 14-17 Jahre |
-| **Teilnehmende** | ~40 Jugendliche (8-10 Teams a 4-5 Personen) |
+| **Zielgruppe** | 14–17 Jahre |
+| **Teilnehmende** | ~40 Jugendliche (8–10 Teams à 4–5 Personen) |
 | **Dauer** | 2 Stunden |
-| **Location** | Schweden (Stadt flexibel: Stockholm, Visby, Goeteborg, Lund, etc.) |
+| **Location** | Schweden (Stadt flexibel) |
 | **Spielmodus** | Wettrennen, individueller Spielablauf pro Team |
-| **Technik** | 1 Smartphone pro Team, Web-App (zwei getrennte Frontends: Team-App + Admin-App) |
-| **Hosting** | STRATO Hosting Basic (Shared-Webhosting, PHP 8.3 + MySQL) |
+| **Technik** | 1 Smartphone pro Team, zwei getrennte Frontends |
+| **Hosting** | STRATO Hosting Basic (PHP 8.3 + MySQL) |
 
 ---
 
 ## Story (unveraendert aus v2)
 
-**Jahr 873 n. Chr.:** Der legendaere Viking-Haeuptling Bjoern "Eisenhand" hat einen Schatz aus
-Gold, Silber und mystischen Runensteinen in einer schwedischen Kuestenstadt versteckt. Doch
-bevor er das Versteck verraten konnte, wurde er ermordet.
-
-**Heute:** Eine Archaeologin hat Bjoerns Tagebuch gefunden -- aber die Seiten sind ueber die
-ganze Stadt verteilt! Die Teams sind junge Archaeologen, die die Hinweise finden, die Raetsel
-loesen und den Schatz als Erste bergen muessen.
-
-**Twist:** Es gibt nicht nur einen Schatz -- mehrere Viking-Haeuptlinge haben Hinterlassenschaften
-versteckt. Die Teams muessen entscheiden: Sammeln sie alle Hinweise fuer den grossen Fund oder
-schnappen sie sich schnell die leichteren Schaetze?
+**Jahr 873 n. Chr.:** Viking-Haeuptling Bjoern "Eisenhand" hat einen Schatz versteckt, wurde ermordet.
+**Heute:** Archaeologin Freya Lindqvist hat Bjoerns Tagebuch gefunden – Seiten sind ueber die Stadt verteilt.
+**Twist:** Mehrere Schaetze, Teams muessen entscheiden: grosser Fund oder schneller kleiner Schatz?
 
 ---
 
-## Der Ermittler-Chat (Grundidee)
+## Der Ermittler-Chat (Grundidee – UMGESETZT)
 
-Statt einer festen Liste an Stationen erlebt jedes Team eine interaktive, sich organisch
-erschliessende Ermittlung im Dialog mit **Freya Lindqvist**, der bereits etablierten
-Archaeologin. Der Chat ersetzt den bisherigen reinen Raetsel-Screen als primaeres
-Interaktionsmodell.
+Teams chatten mit **Freya Lindqvist** statt einer festen Stationsliste.
 
-**Zwei Knotentypen plus eine Ausnahme:**
-- **Info-/Verzweigungsknoten:** loesen parallele Leads aus, erfordern KEINE Antwort, KEINE
-  Auswahl-Buttons.
-- **Antwortknoten:** Button-Bestaetigung oder Text-/Zahlenantwort mit richtig/falsch-Logik.
-- **Schicksalsentscheidung (Twist):** Antwortknoten mit Buttons und echter narrativer Konsequenz.
+**Knotentypen:**
+- **Info-/Verzweigungsknoten:** Keine Antwort erforderlich
+- **Antwortknoten:** Buttons, Text oder Zahl mit richtig/falsch-Logik
+- **Schicksalsentscheidung (Twist):** Echte Buttons-Entscheidung mit Konsequenz
 
-### Twist-Mechanik (final)
+### Twist-Mechanik (final, umgesetzt)
 
-Der urspruengliche Twist ("Sammeln oder schnappen?") bleibt eine echte, folgenreiche
-Entscheidung: Freya stellt eine Frage mit zwei Buttons ("Grosser Schatz" vs. "Kleiner, schneller
-Fund"). Die gewaehlte Spur wird sofort aktiv; die nicht gewaehlte schliesst sich fuer den
-direkten Weg (Ausnahme von der generellen Umkehrbarkeits-Regel).
+- Echte Buttons-Entscheidung: "Grosser Schatz" vs. "Kleiner, schneller Fund"
+- Gewaehlte Spur aktiv, andere schliesst sich (Nebenpfad moeglich)
+- **Nebenpfad:** Nach Abschluss des gewaehlten Pfads wird der andere nachtraeglich freigeschaltet
+- **Kosten:** Nur investierte Zeit, gleiche Punktzahl
 
-**Nebenpfad-Mechanik (final ausgestaltet, 15:12 Uhr):** Der Nebenpfad erschliesst sich NICHT als
-vorab sichtbarer Weg, sondern als Belohnung fuer den Abschluss des gewaehlten Hauptpfads --
-symmetrisch in beide Richtungen:
-- Schliesst ein Team den Marktplatz-Pfad ab (kleiner Fund gewaehlt), erhaelt es danach einen
-  zusaetzlichen Info-Knoten: "Erik Silberzunge erwaehnte beilaeufig etwas ueber die Runensteine --
-  vielleicht lohnt sich doch noch ein Umweg." Das schaltet die Runenstein-Allee nachtraeglich als
-  `lead_only`-Station frei.
-- Symmetrisch andersherum: Schliesst ein Team den Runenstein-Allee-Pfad ab, verweist Astrids
-  Aussage beilaeufig auf einen ungeklaerten Streit am Marktplatz, der den Marktplatz
-  nachtraeglich freischaltet.
-- **Kosten-Modell:** keine kuenstliche Punktstrafe -- der einzige "Preis" ist die investierte
-  Zeit (zusaetzliche Wegstrecke plus ein weiteres Raetsel). Gleiche Punktzahl unabhaengig davon,
-  ob eine Spur direkt oder ueber den Nebenpfad erreicht wird.
+### Entschiedene Design-Punkte (Zusammenfassung – ALLE UMGESETZT)
 
-Damit ist die Twist-Mechanik vollstaendig ausgestaltet.
+1. Freischaltung organisch/interaktiv ueber Chat
+2. Chat ersetzt Raetsel-Screens, Spezial-Raetsel ueber "Auftrag oeffnen"
+3. Individueller Spielablauf pro Team
+4. Discovery-Modell: `lead_only` / `proximity` / `both`, Fog of War
+5. Nachrichten: Text, Bilder, Kartenpositionen
+6. Admin-Verwaltung als Tabellen-Editor
+7. Chat-native Falschantworten: kein Punktabzug, keine Versuchsgrenze
+8. Verzweigungen umkehrbar – Ausnahme: Twist-Entscheidung
+9. "Offene Aufgaben"-Ansicht, Chat-Verlauf als Protokoll
+10. Proaktive Nachrichten: zeitgesteuert + nach Fehlversuchen
+11. Punktevergabe: fix pro Lead, unabhaengig von Versuchsanzahl
 
-### Entschiedene Design-Punkte (Zusammenfassung)
+### Sechs Erweiterungen (Zusammenfassung – ALLE UMGESETZT)
 
-1. Freischaltung organisch/interaktiv ueber Zeugen und Fundstuecke, nicht ueber eine vorab
-   bekannte Liste.
-2. Chat ersetzt Raetsel-Screens; komplexe Typen (Bild/Audio/Reihenfolge/Memory) bleiben
-   Vollbild-Komponenten, ueber "Auftrag oeffnen" aus dem Chat gestartet.
-3. Individueller Spielablauf pro Team, kein globaler Sync.
-4. Discovery-Modell: `lead_only` / `proximity` (Auftauchen = Freischalten) / `both`. Fog of War
-   fuer unentdeckte Stationen. Neuer `unlock_type`-Wert `auto`.
-   **Content-Richtlinie:** abschluss-relevante Knoten (inkl. Verdaechtige) NIE ausschliesslich
-   `proximity`-only.
-5. Nachrichten: Text, Bilder, Kartenpositionen, variable Laenge.
-6. Admin-Verwaltung als Tabellen-Editor (aehnlich `PuzzlesEditorScreen`).
-7. Chat-native Falschantworten: kein Punktabzug, keine Versuchsgrenze. Spezial-Raetsel-Screens
-   behalten `hint_penalty` aus v2.
-8. Verzweigungen umkehrbar -- Ausnahme: Twist-Entscheidung (siehe Nebenpfad-Mechanik).
-9. "Offene Aufgaben"-Ansicht fuer parallele Leads; Chat-Verlauf als vollstaendiges Protokoll.
-10. Proaktive Nachrichten: zeitgesteuert UND nach mehrfachen Fehlversuchen.
-11. Punktevergabe: fixe Punktzahl pro Lead, unabhaengig von Versuchsanzahl.
+1. **Verdaechtigen-System:** ✅ Implementiert (Phase C)
+2. **Finale Anklage:** ✅ Implementiert (Phase C)
+3. **Foto-Einreichung:** ✅ Implementiert (Phase E)
+4. **Team-Avatare:** ✅ Implementiert (Phase F)
+5. **Citywide Eilmeldungen:** ✅ Implementiert mit Vorlagen (Phase F)
+6. **Sinnesreize:** ⚠️ Geplant, nicht implementiert (niedrige Prioritaet)
+7. **Offline-Warteschlange:** ✅ Implementiert (Phase F, IndexedDB)
 
-### Sechs Erweiterungen (Zusammenfassung)
+### Kritische Ueberpruefung – behobene Logikprobleme
 
-1. **Verdaechtigen-System:** vier Verdaechtige (Beispiel, nicht final), werden erst durch
-   Zeugenaussagen entdeckt, enthalten bewusste Widersprueche. Neue Ansicht "Verdaechtige".
-2. **Finale Anklage:** erst nach Entdeckung aller Verdaechtigen freigeschaltet, nur erster
-   Versuch zaehlt fuer den Bonus.
-3. **Foto-Einreichung:** Upload schliesst Aufgabe sofort ab, Punkte vergibt Admin nachtraeglich;
-   Fotos MUESSEN clientseitig komprimiert werden.
-4. **Team-Avatare:** nutzt bestehendes Feld `teams.avatar_url` mit vorgefertigten Icons.
-5. **Citywide Eilmeldungen:** nutzt bestehendes Broadcast-System, nur dramaturgischer Tonfall.
-6. **Sinnesreize:** Vibration (nur Android) + Sound bei neuer Nachricht.
+1. **Discoverability-Luecke:** Kein Verdä±±chtiger darf ausschliesslich `proximity`-only sein ✅
+2. **Twist-Entschaerfung:** Echte Buttons-Entscheidung mit Nebenpfad ✅
 
-### Kritische Ueberpruefung -- behobene Logikprobleme
+### Zusaetzliche technische Anforderungen – UMGESETZT
 
-1. **Discoverability-Luecke behoben:** kein Verdaechtiger darf ausschliesslich `proximity`-only
-   sein, sonst waere die finale Anklage fuer manche Teams strukturell unerreichbar gewesen.
-2. **Twist-Entschaerfung behoben:** die Parallel-Leads-Loesung haette die Kernentscheidung ihrer
-   Konsequenz beraubt; jetzt echte Buttons-Entscheidung mit Nebenpfad.
-
-### Zusaetzliche technische Anforderungen
-
-- **Offline-Warteschlange:** Team-Antworten ohne Netzverbindung werden lokal
-  (localStorage/IndexedDB) zwischengespeichert und automatisch nachgesendet
-  (Background-Sync-Pattern).
-- **Foto-Komprimierung:** verbindlich vor Upload (z. B. Canvas-Resize ~1280px, JPEG ~70%).
-
-### Weiterhin zu bedenken
-
-- Testlauf/Probedurchlauf vor dem echten Event dringend empfohlen.
-- Content-Schreibaufwand (ca. 15-20 Knoten) ist reale Arbeitsleistung.
-- Tonfall-Check fuer den CVJM-Kontext bei Anklage-/Verdaechtigen-Texten empfohlen.
-
-### Priorisierung bei Zeit-/Budgetdruck
-
-Kern: Chat + Leads + Offene Aufgaben. Hoher Wert: Verdaechtige + finale Anklage. Guenstig:
-Citywide Eilmeldungen. Zuerst streichen: Sound/Vibration, Team-Avatare. Kritisch pruefen:
-Foto-Einreichung.
-
----
-
-## Anhang: Beispiel-Dialogfluss (Tonfall-Referenz -- NICHT die finale Story)
-
-Nutzt zur Veranschaulichung bestehende Stationen (Hafen, Museum, Runenstein-Allee, Marktplatz).
-Konkrete Verdaechtigen-Zuordnung ist nicht final; Discoverability-Richtlinie gilt bei der
-finalen Content-Erstellung.
-
-**Knoten 0 (Intro, Antwortknoten):** "Hallo! Ich bin Archaeologin... Seid ihr bereit?"
-[Button: "Wir sind dabei!"]
-
-**Knoten 1 (Info-/Verzweigungsknoten, lead_only, Museum):** "Ich habe die erste Tagebuchseite im
-Museum gefunden..." [Kartenposition]
-
-**Knoten 2 (Antwortknoten, Zahleneingabe):** "An der Wand haengt eine Inschrift, beginnend mit
-einer Jahreszahl..." Bei Fehler: narrativer Kommentar, kein Abzug. Nach 2 Fehlversuchen:
-proaktiver Tipp.
-
-**Knoten 3 (Twist-Entscheidung, echte Buttons):** "Kleiner Fund am Marktplatz oder grosser
-Schatz ueber die Runensteine?" -- gewaehlte Spur aktiv, andere schliesst sich (Nebenpfad siehe
-oben).
-
-**Knoten 4b (Antwortknoten mit Bild + Spezial-Raetsel):** Foto der Runensteine, "Raetsel
-oeffnen"-Button, Rueckkehr in den Chat nach Abschluss.
-
-**Knoten 5 (proaktiv, zeitgesteuert):** Hinweis auf den Hafen bei Inaktivitaet.
-
-**Knoten 6 (proximity, nur fuer optionale Inhalte zulaessig):** Zufallsfund am Hafen.
+- **Offline-Warteschlange:** IndexedDB-basiert, Retry bei `online`-Event ✅
+- **Foto-Komprimierung:** Clientseitig vor Upload ✅
 
 ---
 
 ## Spielziele (aktualisiert)
 
 1. Der sich erschliessenden Spur folgen
-2. Ermittlungsauftraege abschliessen (Buttons, Text/Zahl, Spezial-Raetsel, Foto-Einreichung)
-3. Eine echte Entscheidung treffen, ggf. Nebenpfad zur verpassten Spur suchen
-4. Punkte sammeln (fixe Punktzahl pro Lead, Bonus fuer korrekte Anklage)
-5. Verdaechtige entdecken und den Verraeter identifizieren
-6. Vollstaendigen Chat-Verlauf/Ermittlungsakte fuellen
+2. Ermittlungsauftraege abschliessen (Buttons, Text/Zahl, Spezial-Raetsel, Foto)
+3. Eine echte Entscheidung treffen, ggf. Nebenpfad suchen
+4. Punkte sammeln (fix pro Lead, Bonus fuer korrekte Anklage)
+5. Verdä±±chtige entdecken und den Verraeter identifizieren
+6. Vollstaendigen Chat-Verlauf fuellen
 7. Als Team mit den meisten Punkten gewinnen
 
 ---
 
 ## Raetsel-Typen (ergaenzt um Foto-Einreichung)
 
-Multiple Choice, Freitext, Zahlen-Raetsel (alle auch als Chat-Interaktion moeglich), Bild-,
-Audio-, Reihenfolge-, Memory-Raetsel (Spezial-Screens), NEU: Foto-Einreichung (Upload, Punkte
-nachtraeglich durch Admin).
+Multiple Choice, Freitext, Zahlen-Raetsel (alle auch als Chat-Interaktion), Bild-,
+Audio-, Reihenfolge-, Memory-Raetsel (Spezial-Screens), NEU: Foto-Einreichung (Upload, Punkte nachtraeglich durch Admin).
 
 ---
 
-## Technische Architektur (Ausblick -- Detailausarbeitung folgt in separater technischer Spezifikation)
+## Technische Architektur (Ausblick – UMGESETZT)
 
-- **story_nodes**: Ermittler-Nachrichten (Text, Bild, Kartenposition, Antworttyp, Station,
-  Punktwert, `reveals_suspect_id`, `blocks_alternate_node_id`)
-- **story_node_options**: Antwortoptionen mit Zielknoten
-- **suspects**: Verdaechtigen-Entitaeten
-- **team_story_state / team_story_log**: Fortschritt und Protokoll pro Team
-- **stations.discovery_mode**: `lead_only` / `proximity` / `both`; `unlock_type` neuer Wert `auto`
-- **photo_submissions**: Team-Uploads mit Status
-- Offline-Warteschlange clientseitig; proaktive Trigger per Lazy Evaluation + Cron-Sicherheitsnetz
+- **story_nodes:** Ermittler-Nachrichten (Text, Bild, Kartenposition, Antworttyp, Station, Punktwert)
+- **story_node_options:** Antwortoptionen mit Zielknoten
+- **suspects:** Verdä±±chtigen-Entitaeten
+- **team_story_log:** Fortschritt und Protokoll pro Team
+- **stations.discovery_mode:** `lead_only` / `proximity` / `both`; `unlock_type` neuer Wert `auto`
+- **photo_submissions:** Team-Uploads mit Status
+- **broadcast_templates:** Eilmeldungs-Vorlagen (Phase F)
+- **teams.avatar_url:** Team-Avatare (Phase F)
+- **Offline-Warteschlange:** IndexedDB-basiert (Phase F)
 
 ---
 
 ## Design & UX
 
-Hell, freundlich, mobile-first, PWA-faehig (inkl. Antwort-Warteschlange), barrierefrei,
-Sound/Vibration-Feedback (Android-Einschraenkung bei Vibration).
+Hell, freundlich, mobile-first, PWA-faehig (inkl. Antwort-Warteschlange), barrierefrei.
+Sound/Vibration-Feedback: ⚠️ Geplant, nicht implementiert.
 
 ---
 
@@ -215,7 +130,6 @@ Story-Texte und Persona austauschbar, Raetsel-Typen erweiterbar.
 
 ---
 
-**Erstellt:** 31.08.2026 (v1), 09.09.2026 (v2), 09.09.2026 (v3, konzeptionell, zuletzt
-aktualisiert 15:12 Uhr -- Konzeptphase abgeschlossen, technische Spezifikation folgt separat)
-**Autor:** Joe Miebach (v3 gemeinsam mit Perplexity-Assistent erarbeitet)
-**Version:** 3.0 (Konzept, nicht implementiert)
+**Erstellt:** 31.08.2026 (v1), 09.09.2026 (v2), 09.09.2026 (v3, Konzept + Umsetzung abgeschlossen)
+**Autor:** Joe Miebach (gemeinsam mit Perplexity-Assistent erarbeitet)
+**Version:** 3.0 (Konzept abgeschlossen, technische Umsetzung Phase A–F implementiert)

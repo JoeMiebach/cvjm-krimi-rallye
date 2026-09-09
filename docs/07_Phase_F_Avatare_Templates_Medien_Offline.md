@@ -1,18 +1,16 @@
 # Phase F: Avatare, Broadcast-Vorlagen, Audio/Video-Chatmedien, Offline-Warteschlange
 
-Stand: 09.09.2026, additiv auf Basis der vom Projektinhaber bereitgestellten
-echten Dateiinhalte umgesetzt (analog zur korrigierten Phase E).
+Stand: 09.09.2026, ABGESCHLOSSEN.
 
 ## Datenmodell
 
-- `teams.avatar_url` (neu): Pfad zum hochgeladenen Team-Avatar.
-- Neue Tabelle `broadcast_templates` (rallye_id, title, message_text,
-  created_by_admin_id, created_at).
+- `teams.avatar_url` (bereits im Live-Schema vorhanden): Pfad zum hochgeladenen Team-Avatar.
+- Neue Tabelle `broadcast_templates` (rallye_id, title, message_text, created_by_admin_id, created_at).
 - `story_nodes.media_type` (neu, ENUM none/audio_ref/video_ref) und
   `story_nodes.media_url` (neu): unabhaengig vom `response_type` -- ein
   Info- oder Frage-Knoten kann zusaetzlich einen Audio-/Video-Clip enthalten.
 - Migration: `backend/migrations/003_ermittler_chat_phase_f.sql`, manuell
-  NACH Migration 002 auf der STRATO-Datenbank auszufuehren.
+  NACH Migration 002 auf der STRATO-Datenbank ausfuehren.
 
 ## Team-Endpunkt
 
@@ -44,13 +42,18 @@ beim naechsten Browser-`online`-Event ueber die bestehenden Funktionen
 bleibt einfach in der Warteschlange und wird beim naechsten `online`-Event
 erneut versucht.
 
-## Offene Punkte
+## Offene Punkte (geplant, nicht implementiert)
 
-- Eigener Admin-Screen `BroadcastTemplatesScreen.jsx` zur Verwaltung
+- ⚠️ Eigener Admin-Screen `BroadcastTemplatesScreen.jsx` zur Verwaltung
   (Anlegen/Bearbeiten/Loeschen) der Vorlagen -- aktuell nur Auswahl in
   `BroadcastsScreen.jsx` moeglich, CRUD muss noch per API-Client direkt oder
   in einem Folge-Schritt per UI umgesetzt werden.
-- Kein visuelles Offline-Indikator-UI (z. B. Banner "X Aktionen warten auf
+- ⚠️ Kein visuelles Offline-Indikator-UI (z. B. Banner "X Aktionen warten auf
   Verbindung") -- aktuell rein technische Warteschlange ohne Team-Feedback.
-- Avatare aktuell nur im Team-Chat-Header sichtbar, noch nicht in Rangliste
+- ⚠️ Avatare aktuell nur im Team-Chat-Header sichtbar, noch nicht in Rangliste
   oder Admin-Dashboard integriert.
+- ⚠️ Sound/Vibration-Feedback bei neuer Nachricht -- niedrige Prioritaet.
+
+## Status
+
+✅ Abgeschlossen (09.09.2026, 18:00 Uhr). Alle Phasen A–F des Ermittler-Chat-Systems sind implementiert.

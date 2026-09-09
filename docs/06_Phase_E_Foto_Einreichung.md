@@ -43,3 +43,8 @@ unter `/uploads/photos/` und markiert den Chat-Knoten als abgeschlossen.
   wurde in dieser Fassung bewusst nicht automatisiert, da die genaue
   Signatur von deliverNode() in lib/story.php noch nicht verifiziert ist --
   kann in einem gezielten Folge-Schritt ergaenzt werden.
+
+## Hinweis (09.09.2026, 18:00 Uhr)
+
+Phase F (Avatare, Broadcast-Vorlagen, Audio/Video-Chatmedien, Offline-Warteschlange)
+ist abgeschlossen. Siehe `07_Phase_F_Avatare_Templates_Medien_Offline.md`.

@@ -1,7 +1,7 @@
-# Technische Spezifikation: Viking-Schatz Rallye (PHP / MySQL / Hosting Basic) - Version 3
+# Technische Spezifikation: Viking-Schatz Rallye (PHP / MySQL / Hosting Basic) – Version 3
 
 **Ersetzt:** 02_Technische_Spezifikation_PHP.md (v2.0, bitte archivieren)
-**Stand:** 09.09.2026, 13:41 Uhr (fehlendes basename in team-app behoben)
+**Stand:** 09.09.2026, 18:00 Uhr (Phase F abgeschlossen)
 
 ## System-Architektur (aktualisiert)
 
@@ -39,11 +39,22 @@ cvjm-krimi-rallye/
 ├── .gitignore
 ├── README.md
 ├── docs/
-├── backend/api/ (bootstrap.php, config.php.example, leaderboard.php, puzzles.php, stations.php,
-│   lib/, admin/, auth/, puzzles/, stations/, system/, team/)
+├── backend/api/
+│   ├── bootstrap.php, config.php.example
+│   ├── leaderboard.php, puzzles.php, stations.php
+│   ├── lib/ (cleanup.php, story.php, etc.)
+│   ├── admin/ (rallyes.php, teams.php, stations.php, puzzles.php,
+│   │           story-nodes.php, story-node-options.php, suspects.php,
+│   │           photo-submissions.php, broadcast-templates.php, etc.)
+│   ├── auth/ (check-code.php, register.php, login.php, admin-login.php)
+│   ├── puzzles/ (hint.php, submit.php)
+│   ├── stations/ (unlock.php)
+│   ├── system/ (cleanup.php)
+│   └── team/ (me.php, chat.php, chat/respond.php, open-tasks.php,
+│              suspects.php, photos/submit.php, avatars/upload.php, etc.)
 └── frontend/
-    ├── team-app/src/ (screens/, context/, api/client.js), team-app/public/.htaccess
-    └── admin-app/src/ (screens/, context/, api/client.js), admin-app/public/.htaccess
+    ├── team-app/src/ (screens/, context/, api/client.js, offline/queue.js)
+    └── admin-app/src/ (screens/, context/, api/client.js)
 ```
 
 Beide Frontend-Apps nutzen `react-router-dom` fuer Routing und `react-leaflet` fuer Karten.
@@ -53,13 +64,12 @@ Beide Frontend-Apps nutzen `react-router-dom` fuer Routing und `react-leaflet` f
 ## Authentifizierung (unveraendert aus v2)
 
 Startcode-basiertes Team-Login, E-Mail/Passwort-Admin-Login, HMAC-signierte Session-Tokens.
-Siehe v2 fuer vollstaendige Beschreibung.
 
 ---
 
 ## Polling statt WebSockets (unveraendert aus v2)
 
-Leaderboard/Broadcasts/Admin-Live-Ansicht: 10s Polling. GPS-Geofence-Check: 20-30s Polling.
+Leaderboard/Broadcasts/Admin-Live-Ansicht/Chat: 10s Polling. GPS-Geofence-Check: 20–30s Polling.
 
 ---
 
@@ -82,8 +92,7 @@ function calculateDistance(float $lat1, float $lon1, float $lat2, float $lon2): 
 
 ## Lazy Cleanup der Standortdaten (KORRIGIERT in v3)
 
-**Problem in v2:** loeschte Positionsdaten ALLER Teams sofort nach `game_end_time`,
-unabhaengig vom Alter der Daten -- Live-Karte wurde nach Spielende sofort leer.
+**Problem in v2:** loeschte Positionsdaten ALLER Teams sofort nach `game_end_time`.
 
 **Korrigierte Funktion** (`backend/api/lib/cleanup.php`):
 
@@ -101,18 +110,16 @@ function cleanupExpiredPositions(PDO $pdo, int $maxAgeHours = 4): int {
 ```
 
 Bereinigung jetzt altersbasiert (Standard 4h), nicht mehr an `game_end_time` gekoppelt.
-Externer Cron-Trigger (`GET /system/cleanup.php`) bleibt als Sicherheitsnetz bestehen.
 
 ---
 
 ## Sicherheitskonzept (ergaenzt)
 
-PDO Prepared Statements, bcrypt-Passworthashing, HMAC-signierte Tokens (unveraendert aus v2).
+PDO Prepared Statements, bcrypt-Passworthashing, HMAC-signierte Tokens.
 
-**NEU -- Pflicht-Regel fuer Secrets:** `config.php`/`config.local.php` MUESSEN in
+**NEU – Pflicht-Regel fuer Secrets:** `config.php`/`config.local.php` MUESSEN in
 `.gitignore` stehen. Bei versehentlichem Commit: vollstaendiger Git-History-Rewrite
-(`git filter-repo` oder `git filter-branch`) PLUS Rotation aller betroffenen Zugangsdaten
-(DB-Passwort, `token_secret`, `cleanup_secret`) ist Pflicht.
+PLUS Rotation aller betroffenen Zugangsdaten (DB-Passwort, `token_secret`, `cleanup_secret`).
 
 ---
 
@@ -122,56 +129,87 @@ Beide Frontends (`team-app`, `admin-app`) werden separat gebaut (`npm run build`
 SFTP in getrennte Verzeichnisse hochgeladen; Backend unveraendert nach `/api`.
 
 **SPA-Rewrite-Pflicht:** Beide Apps nutzen `react-router-dom` mit `BrowserRouter`
-(`basename="/admin"` bzw. `"/team"`) und erzeugen damit rein clientseitige Routen wie
-`/admin/dashboard`. Diese Pfade existieren nicht als physische Dateien auf dem Server -- nur
-`index.html` liegt dort. Ohne serverseitige Rewrite-Regel liefert Apache bei einem Reload (F5),
-einem Lesezeichen oder einem direkten Aufruf einer solchen Unterroute einen echten 404
-(Apache-Standardfehlerseite, ca. 236 Byte), obwohl die App beim Klick-Navigieren einwandfrei
-funktioniert. Fix: `public/.htaccess` in beiden Vite-Projekten
-(`frontend/admin-app/public/.htaccess`, `frontend/team-app/public/.htaccess`), die alle
-nicht-existierenden Pfade auf das jeweilige `index.html` umleitet. Vite kopiert den Inhalt von
-`public/` unveraendert in den Build (`dist/`), sodass die `.htaccess` bereits im Build-Ordner
-korrekt vorliegt.
+(`basename="/admin"` bzw. `"/team"`) und erzeugen damit rein clientseitige Routen.
+Fix: `public/.htaccess` in beiden Vite-Projekten.
 
-**NACHTRAG (09.09.2026, 13:20 Uhr) -- Workflow-Fix noetig:** Die verwendete Deploy-Action
-(`wlixcc/SFTP-Deploy-Action@v1.2.4`) matched bei einem Wildcard-Glob wie `dist/*` KEINE
-Dotfiles -- die Action bietet dafuer keine Konfigurationsoption. Die `.htaccess` lag dadurch
-zwar korrekt in `dist/.htaccess`, wurde vom Haupt-Upload-Schritt aber schlicht uebersprungen
-(Symptom: 404 bei Reload/Direktaufruf blieb trotz vorhandener `public/.htaccess` bestehen).
-Fix in `.github/workflows/deploy-frontend.yml`: pro App ein zusaetzlicher
-SFTP-Deploy-Action-Schritt, der `local_path` direkt auf `dist/.htaccess` zeigt
-(Einzeldatei-Modus statt Wildcard-Glob) und dieselbe Datei explizit nachliefert.
+**NACHTRAG (09.09.2026, 13:20 Uhr) – Workflow-Fix:** Deploy-Action matched bei Wildcard-Glob
+`dist/*` KEINE Dotfiles. Fix: zusaetzlicher Einzeldatei-Upload-Schritt pro App.
 
-**NACHTRAG (09.09.2026, 13:41 Uhr) -- fehlendes `basename` in team-app:** `team-app/src/main.jsx`
-setzte am `BrowserRouter` kein `basename="/team"` (im Unterschied zur `admin-app`, die bereits
-korrekt `basename="/admin"` nutzte). Dadurch kannte der Router seinen eigenen URL-Praefix nicht:
-Ein interner Redirect (z. B. von `StartScreen` nach erfolgreichem Auth-Check zu `/stations`)
-landete absolut auf `joe-miebach.de/stations` statt `joe-miebach.de/team/stations` -- ausserhalb
-des Verzeichnisses, fuer das die SPA-Rewrite-`.htaccess` gilt. Symptom: Aufruf von `joe-miebach.de/team`
-leitete zu `joe-miebach.de/stations` weiter, das nach Reload 404 lieferte. Fix: `basename="/team"`
+**NACHTRAG (09.09.2026, 13:41 Uhr) – fehlendes `basename` in team-app:** `basename="/team"`
 ergaenzt.
 
 ---
 
 ## Story-Hinweis-Mechanik (RESOLVED, 09.09.2026)
 
-Der fruehere "Offene technische Punkt: story_clue-Feld" ist geklaert (siehe
-`00_Project_Brief_Entscheidungslog_v3.md`, Entschiedene Punkte, Punkt 14, und
-`04_API_Spezifikation_PHP_v3.md`):
-
-- `puzzles.story_clue_text` (nullable) traegt den Hinweistext pro Raetsel. Bonus-Raetsel ohne
-  eigenen Story-Beitrag lassen dieses Feld `NULL`.
+- `puzzles.story_clue_text` (nullable) traegt den Hinweistext pro Raetsel.
 - `POST /puzzles/submit.php` liefert den Hinweis bei korrekter Antwort sofort im Response
-  (`story_clue`) fuer ein Popup UND schreibt ihn zusaetzlich dauerhaft in die neue Tabelle
-  `team_story_clues` (`team_id`, `puzzle_id`, `story_clue_text`, `unlocked_at`, UNIQUE auf
-  `team_id`+`puzzle_id`).
-- `GET /team/clues.php` liest ausschliesslich aus `team_story_clues` und zeigt damit alle
-  bisher freigeschalteten Hinweise dauerhaft an, unabhaengig vom Popup-Zeitpunkt.
-- Beide Tabellen/Felder existierten bereits im produktiven Live-Schema (verifiziert gegen
-  Datenbank-Export vom 09.09.2026); nur `backend/api/puzzles/submit.php` musste entsprechend
-  korrigiert werden (nutzte zuvor faelschlich `stations.story_text`).
+  (`story_clue`) UND schreibt ihn dauerhaft in `team_story_clues`.
+- `GET /team/clues.php` liest ausschliesslich aus `team_story_clues`.
+- Beide Tabellen/Felder existierten bereits im produktiven Live-Schema.
 
 ---
 
-**Erstellt:** 31.08.2026 (v1 Node/VPS), 31.08.2026 (v2 PHP/MySQL), 09.09.2026 (v3 Code-Abgleich)
+## Ermittler-Chat-System (NEU, Phase A–F abgeschlossen)
+
+Das Ermittler-Chat-System ersetzt die alte "Ermittlungsakte" vollstaendig. Teams chatten mit
+Freya Lindqvist (Kriminalbeamte) und erhalten ueber den Chat:
+- Story-Informationen
+- Aufgaben (Stationen loesen, Puzzles, Fotos einreichen)
+- Interaktive Entscheidungen (Buttons, Text, Zahl)
+
+### Chat-Architektur
+
+- Jeder Chat-Knoten (`story_nodes`) hat einen `node_key` (z.B. 'intro', 'suspect_erik')
+- `response_type` bestimmt die Eingabe: `buttons`, `text`, `number`, `puzzle_ref`, `photo_ref`, `none`
+- `chat_deliveries` trackt pro Team, welcher Knoten geliefert + beantwortet wurde
+- Bei `buttons`: `story_node_options` mit `next_node_key` + `is_correct`
+
+### Antworttypen
+
+| Typ | Beschreibung | Beispiel |
+|-----|--------------|----------|
+| `buttons` | Team klickt eine Option | "Wen willst du anklagen?" → Erik, Lena, Niemand |
+| `text` | Freie Texteingabe | "Gib das Codewort ein" |
+| `number` | Zahleneingabe | "Wie viele Schritte waren es?" |
+| `puzzle_ref` | Verweis auf Rätsel | "Loese zuerst das Stations-Rä±±tsel" |
+| `photo_ref` | Foto-Upload | "Mache ein Foto vom Tatort" |
+| `none` | Nur Info, keine Antwort | "Hier ist ein Hinweis..." |
+
+### Medien (Phase F)
+
+- `story_nodes.media_type` + `media_url`: Audio/Video-Clips, unabhaengig von `response_type`
+- Wird im Chat mit nativen `<audio>`/`<video>`-Playern gerendert
+
+### Verdä±±chtige-System (Phase C)
+
+- `suspects`-Tabelle mit `is_culprit`-Flag
+- Bei falscher Anklage: `reaction_text` wird angezeigt
+
+### Foto-Einreichungen (Phase E)
+
+- `photo_submissions`-Tabelle
+- Admin prueft im Backend und vergibt Punkte
+
+### Avatare (Phase F)
+
+- `teams.avatar_url`
+- Upload ueber `/api/team/avatars/upload.php`
+- Avatar wird im Chat-Header angezeigt
+
+### Offline-Warteschlange (Phase F)
+
+- `src/offline/queue.js` (IndexedDB)
+- Speichert `respond`- und `photo`-Aktionen bei Netzwerkfehler
+- Retry beim `online`-Event
+
+### Admin-UI
+
+- Story-Knoten, Optionen, Verdä±±chtige: CRUD im Admin-Bereich
+- Foto-Einreichungen: Review + Punktevergabe
+- Broadcast-Vorlagen: CRUD (API vorhanden, UI teilweise)
+
+---
+
+**Erstellt:** 31.08.2026 (v1 Node/VPS), 31.08.2026 (v2 PHP/MySQL), 09.09.2026 (v3 Code-Abgleich, Phase F abgeschlossen)
 **Version:** 3.0

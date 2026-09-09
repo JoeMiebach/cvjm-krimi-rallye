@@ -1,13 +1,12 @@
 # Technische Spezifikation: Ermittler-Chat-System (Version 1)
 
-**Ergaenzt:** 02_Technische_Spezifikation_PHP_v3.md, 03_Datenbank_Schema_MySQL_MultiRallye_v3.sql,
+**Ergaenzt:** 02_Technische_Spezifikation_PHP_v3.md, 03_Datenbank_Schema_MySQL_MultiRallye_v4.sql,
 04_API_Spezifikation_PHP_v3.md (dieses Dokument beschreibt NUR die Aenderungen/Ergaenzungen fuer
 das Ermittler-Chat-Konzept aus 01_Konzeptpapier_Viking_Schatz_v3.md)
-**Stand:** 09.09.2026, 15:17 Uhr
-**Status:** SPEZIFIKATION -- noch NICHT implementiert. Migrationsstrategie: VOLLSTAENDIGE
-Abloesung des bestehenden story_clue/Ermittlungsakte-Systems (siehe Migrationsplan).
-**Umfang:** Volles Konzept (Chat, Leads, Offene Aufgaben, Verdaechtige, finale Anklage,
-Foto-Einreichung, Team-Avatare, Eilmeldungen, Sinnesreize, Offline-Warteschlange).
+**Stand:** 09.09.2026, 18:00 Uhr
+**Status:** IMPLEMENTIERT (Phase A–F abgeschlossen)
+**Umfang:** Volles Konzept (Chat, Leads, Offene Aufgaben, Verdä±±chtige, finale Anklage,
+Foto-Einreichung, Team-Avatare, Eilmeldungen, Offline-Warteschlange).
 
 ---
 
@@ -29,13 +28,12 @@ System vollstaendig ersetzt, nicht parallel weiterbetrieben.
    /admin/game/reset.php`) und die Stationen/Raetsel/Knoten fuer die echte erste Rallye neu
    angelegt -- keine Datenmigration bestehender Test-Fortschritte noetig.
 5. Reihenfolge der Umsetzung (Phasenplan trotz vollem Zielumfang, um Testbarkeit zu erhalten):
-   - Phase A: Schema + Backend-Endpunkte fuer Chat-Kern (Knoten, Optionen, Log)
-   - Phase B: Team-App ChatScreen + OpenTasksScreen
-   - Phase C: Verdaechtige + finale Anklage
-   - Phase D: Admin-Content-Editor fuer Knoten/Verdaechtige
-   - Phase E: Foto-Einreichung + Admin-Review
-   - Phase F: Team-Avatare, Eilmeldungs-Vorlagen, Sinnesreize, Offline-Warteschlange (geringste
-     Prioritaet, siehe Konzeptpapier "Priorisierung bei Zeit-/Budgetdruck")
+   - Phase A: Schema + Backend-Endpunkte fuer Chat-Kern (Knoten, Optionen, Log) ✅
+   - Phase B: Team-App ChatScreen + OpenTasksScreen ✅
+   - Phase C: Verdä±±chtige + finale Anklage ✅
+   - Phase D: Admin-Content-Editor fuer Knoten/Verdaechtige ✅
+   - Phase E: Foto-Einreichung + Admin-Review ✅
+   - Phase F: Team-Avatare, Eilmeldungs-Vorlagen, Audio/Video-Medien, Offline-Warteschlange ✅
 
 ---
 
@@ -61,8 +59,10 @@ CREATE TABLE story_nodes (
     id INT AUTO_INCREMENT PRIMARY KEY, rallye_id INT NOT NULL,
     type ENUM('info','answer','twist','accusation') NOT NULL DEFAULT 'info',
     message_text TEXT NOT NULL, image_url VARCHAR(255) NULL,
+    media_type ENUM('none','audio_ref','video_ref') NOT NULL DEFAULT 'none' COMMENT 'Phase F',
+    media_url VARCHAR(255) NULL COMMENT 'Phase F',
     map_latitude DECIMAL(10,8) NULL, map_longitude DECIMAL(11,8) NULL,
-    response_type ENUM('none','buttons','text','number','puzzle_ref') NOT NULL DEFAULT 'none',
+    response_type ENUM('none','buttons','text','number','puzzle_ref','photo_ref') NOT NULL DEFAULT 'none',
     station_id INT NULL, puzzle_id INT NULL, reveals_suspect_id INT NULL,
     points INT DEFAULT 0,
     proactive_trigger ENUM('none','inactivity','wrong_attempts') DEFAULT 'none',
@@ -108,8 +108,21 @@ CREATE TABLE photo_submissions (
     INDEX idx_photo_submissions_team (team_id)
 ) ENGINE=InnoDB;
 
+-- Phase F: Broadcast-Vorlagen
+CREATE TABLE broadcast_templates (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    rallye_id INT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message_text TEXT NOT NULL,
+    created_by_admin_id INT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (rallye_id) REFERENCES rallyes(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by_admin_id) REFERENCES admins(id) ON DELETE SET NULL,
+    INDEX idx_broadcast_templates_rallye (rallye_id)
+) ENGINE=InnoDB;
+
 ALTER TABLE teams
-  MODIFY COLUMN avatar_url VARCHAR(64) NULL COMMENT 'Icon-Schluessel, z.B. wolf/rabe/kompass, kein echter Bild-Pfad';
+  MODIFY COLUMN avatar_url VARCHAR(255) NULL COMMENT 'Pfad zum hochgeladenen Team-Avatar (Phase F)';
 ```
 
 `team_story_clues` und die Spalte `puzzles.story_clue_text` werden nach Abschluss der Migration
@@ -127,37 +140,20 @@ Rueckwaertskompatibilitaet waehrend der Umstellung zu erlauben).
 | GET | /team/chat.php | Vollstaendiger Chat-Verlauf (alle `team_story_log`-Eintraege, chronologisch) |
 | GET | /team/open-tasks.php | Alle unbeantworteten/nicht abgeschlossenen Knoten des Teams |
 | POST | /team/chat/respond.php | Antwort auf einen Knoten einreichen (Button-Wahl, Text, Zahl) |
-| GET | /team/suspects.php | Bisher entdeckte Verdaechtige des Teams |
+| GET | /team/suspects.php | Bisher entdeckte Verdä±±chtige des Teams |
 | POST | /team/photos/submit.php | Foto-Upload fuer einen `photo_ref`-Knoten (multipart/form-data) |
-
-**POST /team/chat/respond.php** -- Request:
-```json
-{ "node_id": 12, "response": "1523" }
-```
-Response (korrekt, mit sofortiger Konsequenz):
-```json
-{ "success": true, "is_correct": true, "message": "Richtig! Das erklaert einiges...",
-  "unlocked_nodes": [13, 14], "points_earned": 15 }
-```
-Response (falsch, chat-nativ -- kein Punktabzug, keine Versuchsgrenze):
-```json
-{ "success": true, "is_correct": false, "message": "Hmm, das kommt mir nicht richtig vor." }
-```
-Bei `type: twist` mit `blocks_alternate_node_id`: setzt den alternativen Knoten auf inaktiv fuer
-dieses Team (bis der Nebenpfad-Knoten ihn spaeter erneut freischaltet).
-Bei `type: accusation`: prueft `correct_value` gegen `is_guilty`-Verdaechtigen, vergibt Bonus nur
-bei `attempts === 1` (siehe Konzeptpapier, "nur erster Versuch zaehlt").
+| POST | /team/avatars/upload.php | Avatar-Upload (multipart/form-data, Phase F) |
 
 ### Admin-Endpunkte (NEU)
 
 | Methode | Endpunkt | Beschreibung |
 |---|---|---|
-| GET/POST/PUT/DELETE | /admin/story-nodes.php | CRUD fuer Knoten (Tabellen-Editor) |
+| GET/POST/PUT/DELETE | /admin/story-nodes.php | CRUD fuer Chat-Knoten |
 | GET/POST/PUT/DELETE | /admin/story-node-options.php | CRUD fuer Antwortoptionen |
-| GET/POST/PUT/DELETE | /admin/suspects.php | CRUD fuer Verdaechtige |
-| GET | /admin/photo-submissions.php?rallye_id= | Liste aller Foto-Einsendungen |
+| GET/POST/PUT/DELETE | /admin/suspects.php | CRUD fuer Verdä±±chtige |
+| GET | /admin/photo-submissions.php?rallye_id= | Liste aller Foto-Einsendungen einer Rallye |
 | POST | /admin/photo-submissions/award.php | Punkte fuer eine Einsendung vergeben |
-| GET | /admin/story-preview.php?team_id= | Read-only Vorschau des Chat-Zustands eines Teams (fuer Probelauf/Support waehrend des Events) |
+| GET/POST/PUT/DELETE | /admin/broadcast-templates.php | CRUD fuer Eilmeldungs-Vorlagen (Phase F) |
 
 ---
 
@@ -168,26 +164,19 @@ bei `attempts === 1` (siehe Konzeptpapier, "nur erster Versuch zaehlt").
   Nachrichtentypen (Text/Bild/Kartenposition) als unterschiedliche Bubble-Varianten; offene
   Antwortknoten zeigen inline Buttons/Eingabefelder direkt in der letzten Bubble.
 - `OpenTasksScreen.jsx` (NEU): gefilterte Liste aller `is_completed = 0`-Eintraege.
-- `SuspectsScreen.jsx` (NEU): Galerie der ueber `GET /team/suspects.php` gemeldeten Verdaechtigen.
+- `SuspectsScreen.jsx` (NEU): Galerie der ueber `GET /team/suspects.php` gemeldeten Verdä±±chtigen.
+- `AvatarScreen.jsx` (NEU, Phase F): Avatar hochladen.
 
 **Angepasste Screens:**
-- `StationsMapScreen.jsx`: filtert Stationen nach Entdeckungsstatus (nur `lead_only`/`both` nach
-  Freischaltung durch Chat, `proximity`/`both` zusaetzlich bei GPS-Naehe -- echtes Fog of War).
-- `PuzzlesScreen.jsx`: bleibt fuer Spezial-Raetseltypen (Bild/Audio/Reihenfolge/Memory) bestehen,
-  wird aber jetzt kontextuell aus dem Chat heraus geoeffnet (`node.puzzle_id`) statt aus einer
-  Stationsliste; nach Abschluss `POST /team/chat/respond.php` mit dem Ergebnis, dann zurueck zu
-  `/chat`.
-- `StationDetailScreen.jsx`: wird zum "Vor-Ort-Bestaetigungs-Screen" (QR-Scan/GPS-Bestaetigung),
-  erreichbar ueber Tap auf einen Kartenpunkt oder eine offene Aufgabe, nicht mehr ueber eine
-  manuelle Stationsliste.
-- `StationsScreen.jsx`: ENTFAELLT (manuelle Stationsliste nicht mehr noetig, Navigation erfolgt
-  ueber Chat/Karte/Offene Aufgaben).
+- `StationsMapScreen.jsx`: filtert Stationen nach Entdeckungsstatus.
+- `PuzzlesScreen.jsx`: bleibt fuer Spezial-Raetseltypen bestehen, wird kontextuell aus dem Chat geoeffnet.
+- `StationDetailScreen.jsx`: wird zum "Vor-Ort-Bestaetigungs-Screen".
+- `StationsScreen.jsx`: ENTFAELLT.
 
 **Neue Infrastruktur:**
-- Offline-Warteschlange: `src/lib/offlineQueue.js`, nutzt IndexedDB, haengt sich an den Service
+- Offline-Warteschlange: `src/offline/queue.js`, nutzt IndexedDB, haengt sich an den Service
   Worker (Background Sync API, Fallback: Retry bei Reconnect-Event).
-- Sound/Vibration: `src/lib/notifyNewMessage.js`, `navigator.vibrate()` + `Audio`-Objekt,
-  einmalige Freischaltung per Nutzer-Geste beim Spielstart.
+- Sound/Vibration: ⚠️ Geplant, nicht implementiert.
 - Foto-Komprimierung vor Upload: `src/lib/compressImage.js` (Canvas-Resize + JPEG-Export).
 
 ---
@@ -198,24 +187,22 @@ Konsistent mit dem bestehenden Lazy-Cleanup-Prinzip: `GET /team/chat.php` prueft
 zusaetzlich, ob proaktive Knoten faellig sind:
 - `proactive_trigger = 'inactivity'`: `NOW() - team_progress.last_activity > proactive_after_minutes`
 - `proactive_trigger = 'wrong_attempts'`: `team_story_log.attempts >= proactive_after_attempts`
-  fuer einen offenen Knoten
 
-Faellige proaktive Knoten werden bei diesem Check automatisch in `team_story_log` eingetragen
-(analog zur bestehenden `cleanupExpiredPositions()`-Funktion) -- kein zusaetzlicher Cronjob
-noetig, passt zur STRATO-Hosting-Einschraenkung (kein Dauerprozess).
+Faellige proaktive Knoten werden bei diesem Check automatisch in `team_story_log` eingetragen.
 
 ---
 
 ## 6. Offene technische Detailfragen
 
-- Exaktes Bildformat/Speicherort fuer Verdaechtigen-Portraits und Foto-Einsendungen
+- Exaktes Bildformat/Speicherort fuer Verdä±±chtigen-Portraits und Foto-Einsendungen
   (`/uploads/suspects/`, `/uploads/photos/`?) -- an bestehende `media_url`-Konvention anlehnen.
-- Admin-Tabellen-Editor fuer `story_node_options`: verschachtelte Bearbeitung (Optionen direkt in
-  der Knoten-Detailansicht) oder eigene Unterseite?
-- Exakte Icon-Assets fuer Team-Avatare (6-8 Stueck) muessen noch erstellt/ausgewaehlt werden.
+- Admin-Tabellen-Editor fuer `story_node_options`: verschachtelte Bearbeitung oder eigene Unterseite?
+- Exakte Icon-Assets fuer Team-Avatare (6–8 Stueck) muessen noch erstellt/ausgewaehlt werden.
+- Sound/Vibration-Feedback: ⚠️ Geplant, nicht implementiert (niedrige Prioritaet).
+- Eigener Admin-Screen `BroadcastTemplatesScreen.jsx`: ⚠️ Geplant, nicht implementiert (CRUD-API vorhanden).
 
 ---
 
-**Erstellt:** 09.09.2026, 15:17 Uhr
+**Erstellt:** 09.09.2026, 15:17 Uhr (Spezifikation), 09.09.2026, 18:00 Uhr (IMPLEMENTIERT)
 **Autor:** Joe Miebach (gemeinsam mit Perplexity-Assistent erarbeitet)
-**Version:** 1.0 (Spezifikation, nicht implementiert)
+**Version:** 1.0 (Spezifikation, IMPLEMENTIERT)

@@ -1,12 +1,12 @@
 -- Viking-Schatz Rallye: Multi-Rallye-Datenbankschema (Version 4.0)
--- Ersetzt: 03_Datenbank_Schema_MySQL_MultiRallye_v3.sql (bitte archivieren als
--- ARCHIV_03_..._v3.sql)
+-- Ersetzt: 03_Datenbank_Schema_MySQL_MultiRallye_v3.sql (bitte archivieren)
 -- AENDERUNG v4.0 (09.09.2026, 15:20 Uhr): Ermittler-Chat-System Phase A ergaenzt
 -- (siehe 05_Technische_Spezifikation_Ermittler_Chat_v1.md). Neue Tabellen: suspects,
 -- story_nodes, story_node_options, team_story_log. stations.discovery_mode ergaenzt,
 -- stations.unlock_type um Wert 'auto' erweitert.
 -- HINWEIS: team_story_clues bleibt vorerst bestehen (wird erst nach erfolgreichem Test
 -- von Phase A+B des Ermittler-Chat-Systems entfernt, siehe Project Brief Punkt 17).
+-- ERGAENZT (09.09.2026, 18:00 Uhr): Phase F (broadcast_templates, story_nodes.media_type/media_url)
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
@@ -44,7 +44,8 @@ CREATE TABLE start_codes (
 CREATE TABLE teams (
     id INT AUTO_INCREMENT PRIMARY KEY, rallye_id INT NOT NULL,
     start_code VARCHAR(12) UNIQUE NOT NULL, name VARCHAR(255) NULL,
-    avatar_url VARCHAR(255) NULL, current_latitude DECIMAL(10,8) NULL,
+    avatar_url VARCHAR(255) NULL COMMENT 'Bereits im Live-Schema vorhanden, Phase F nutzt dies fuer Team-Avatare',
+    current_latitude DECIMAL(10,8) NULL,
     current_longitude DECIMAL(11,8) NULL, last_position_update DATETIME NULL,
     is_active TINYINT(1) DEFAULT 1, registered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (rallye_id) REFERENCES rallyes(id) ON DELETE CASCADE,
@@ -140,12 +141,12 @@ CREATE TABLE story_nodes (
     id INT AUTO_INCREMENT PRIMARY KEY, rallye_id INT NOT NULL,
     type ENUM('info','answer','twist','accusation') NOT NULL DEFAULT 'info',
     message_text TEXT NOT NULL, image_url VARCHAR(255) NULL,
+    media_type ENUM('none','audio_ref','video_ref') NOT NULL DEFAULT 'none' COMMENT 'Phase F: Audio/Video-Clips',
+    media_url VARCHAR(255) NULL COMMENT 'Phase F: Pfad zu Audio/Video-Datei',
     map_latitude DECIMAL(10,8) NULL, map_longitude DECIMAL(11,8) NULL,
-    response_type ENUM('none','buttons','text','number','puzzle_ref') NOT NULL DEFAULT 'none',
+    response_type ENUM('none','buttons','text','number','puzzle_ref','photo_ref') NOT NULL DEFAULT 'none',
     station_id INT NULL, puzzle_id INT NULL, reveals_suspect_id INT NULL,
     points INT DEFAULT 0,
-    is_root TINYINT(1) DEFAULT 0,
-    related_node_id INT NULL,
     proactive_trigger ENUM('none','inactivity','wrong_attempts') DEFAULT 'none',
     proactive_after_minutes INT NULL, proactive_after_attempts INT NULL,
     is_active TINYINT(1) DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -153,9 +154,7 @@ CREATE TABLE story_nodes (
     FOREIGN KEY (station_id) REFERENCES stations(id) ON DELETE SET NULL,
     FOREIGN KEY (puzzle_id) REFERENCES puzzles(id) ON DELETE SET NULL,
     FOREIGN KEY (reveals_suspect_id) REFERENCES suspects(id) ON DELETE SET NULL,
-    FOREIGN KEY (related_node_id) REFERENCES story_nodes(id) ON DELETE SET NULL,
-    INDEX idx_story_nodes_rallye (rallye_id), INDEX idx_story_nodes_type (type),
-    INDEX idx_story_nodes_root (is_root)
+    INDEX idx_story_nodes_rallye (rallye_id), INDEX idx_story_nodes_type (type)
 ) ENGINE=InnoDB;
 
 CREATE TABLE story_node_options (
@@ -179,6 +178,29 @@ CREATE TABLE team_story_log (
     FOREIGN KEY (node_id) REFERENCES story_nodes(id) ON DELETE CASCADE,
     UNIQUE KEY uq_team_node (team_id, node_id),
     INDEX idx_story_log_team (team_id), INDEX idx_story_log_completed (is_completed)
+) ENGINE=InnoDB;
+
+CREATE TABLE photo_submissions (
+    id INT AUTO_INCREMENT PRIMARY KEY, team_id INT NOT NULL, node_id INT NOT NULL,
+    photo_path VARCHAR(255) NOT NULL, submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    points_awarded_at DATETIME NULL, points_awarded_by_admin_id INT NULL,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY (node_id) REFERENCES story_nodes(id) ON DELETE CASCADE,
+    FOREIGN KEY (points_awarded_by_admin_id) REFERENCES admins(id) ON DELETE SET NULL,
+    INDEX idx_photo_submissions_team (team_id)
+) ENGINE=InnoDB;
+
+-- NEU (Phase F): Broadcast-Vorlagen
+CREATE TABLE broadcast_templates (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    rallye_id INT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message_text TEXT NOT NULL,
+    created_by_admin_id INT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (rallye_id) REFERENCES rallyes(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by_admin_id) REFERENCES admins(id) ON DELETE SET NULL,
+    INDEX idx_broadcast_templates_rallye (rallye_id)
 ) ENGINE=InnoDB;
 
 DELIMITER //
