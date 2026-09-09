@@ -35,5 +35,5 @@ jobs:
           password: ${{ secrets.STRATO_SFTP_PASSWORD }}
           port: 22
           local_path: "./backend/api/*"
-          remote_path: "/api"
+          remote_path: "/stadtrallye/api"
           sftp_only: true
