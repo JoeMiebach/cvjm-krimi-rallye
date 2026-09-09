@@ -1,0 +1,4 @@
+-- Version 5: story_nodes.response_type enthält photo_ref.
+-- Neue Tabelle photo_submissions: team_id, node_id, photo_path, submitted_at,
+-- points_awarded_at und points_awarded_by_admin_id.
+-- Bestehende Installationen: Migration 002 nach Migration 001 ausfä¡¡hren.
