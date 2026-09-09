@@ -1,7 +1,7 @@
 # Technische Spezifikation: Viking-Schatz Rallye (PHP / MySQL / Hosting Basic) - Version 3
 
 **Ersetzt:** 02_Technische_Spezifikation_PHP.md (v2.0, bitte archivieren)
-**Stand:** 09.09.2026, 12:37 Uhr (story_clue-Punkt final geklaert)
+**Stand:** 09.09.2026, 13:14 Uhr (SPA-Rewrite-Fix fuer Reload/Direktaufruf ergaenzt)
 
 ## System-Architektur (aktualisiert)
 
@@ -42,8 +42,8 @@ cvjm-krimi-rallye/
 ├── backend/api/ (bootstrap.php, config.php.example, leaderboard.php, puzzles.php, stations.php,
 │   lib/, admin/, auth/, puzzles/, stations/, system/, team/)
 └── frontend/
-    ├── team-app/src/ (screens/, context/, api/client.js)
-    └── admin-app/src/ (screens/, context/, api/client.js)
+    ├── team-app/src/ (screens/, context/, api/client.js), team-app/public/.htaccess
+    └── admin-app/src/ (screens/, context/, api/client.js), admin-app/public/.htaccess
 ```
 
 Beide Frontend-Apps nutzen `react-router-dom` fuer Routing und `react-leaflet` fuer Karten.
@@ -120,6 +120,18 @@ PDO Prepared Statements, bcrypt-Passworthashing, HMAC-signierte Tokens (unveraen
 
 Beide Frontends (`team-app`, `admin-app`) werden separat gebaut (`npm run build`) und per
 SFTP in getrennte Verzeichnisse hochgeladen; Backend unveraendert nach `/api`.
+
+**NEU -- SPA-Rewrite-Pflicht (09.09.2026):** Beide Apps nutzen `react-router-dom` mit
+`BrowserRouter` (`basename="/admin"` bzw. `"/team"`) und erzeugen damit rein clientseitige
+Routen wie `/admin/dashboard`. Diese Pfade existieren nicht als physische Dateien auf dem
+Server -- nur `index.html` liegt dort. Ohne serverseitige Rewrite-Regel liefert Apache bei
+einem Reload (F5), einem Lesezeichen oder einem direkten Aufruf einer solchen Unterroute
+einen echten 404 (Apache-Standardfehlerseite, ca. 236 Byte), obwohl die App beim
+Klick-Navigieren einwandfrei funktioniert. Fix: `public/.htaccess` in beiden Vite-Projekten
+(`frontend/admin-app/public/.htaccess`, `frontend/team-app/public/.htaccess`), die alle
+nicht-existierenden Pfade auf das jeweilige `index.html` umleitet. Vite kopiert den Inhalt von
+`public/` unveraendert in den Build (`dist/`), sodass die `.htaccess` automatisch mit jedem
+SFTP-Deploy in den richtigen Docroot-Unterordner gelangt -- kein Workflow-Update noetig.
 
 ---
 

@@ -1,0 +1,15 @@
+# frontend/team-app/public/.htaccess
+# NEU (09.09.2026): SPA-Rewrite fuer react-router-dom (BrowserRouter basename="/team").
+# Ohne diese Regel liefert Apache bei einem Reload oder direkten Aufruf einer
+# Unterroute (z.B. /team/case-file) einen echten 404, weil dort keine
+# physische Datei existiert -- nur /team/index.html, aus der React Router
+# die Route erst im Browser aufbaut. Siehe 02_Technische_Spezifikation_PHP_v3.md,
+# Abschnitt "Deployment".
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /team/
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /team/index.html [L]
+</IfModule>

@@ -1,0 +1,15 @@
+# frontend/admin-app/public/.htaccess
+# NEU (09.09.2026): SPA-Rewrite fuer react-router-dom (BrowserRouter basename="/admin").
+# Ohne diese Regel liefert Apache bei einem Reload oder direkten Aufruf einer
+# Unterroute (z.B. /admin/dashboard) einen echten 404, weil dort keine
+# physische Datei existiert -- nur /admin/index.html, aus der React Router
+# die Route erst im Browser aufbaut. Siehe 02_Technische_Spezifikation_PHP_v3.md,
+# Abschnitt "Deployment".
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /admin/
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /admin/index.html [L]
+</IfModule>
