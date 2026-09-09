@@ -7,11 +7,14 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 
+
 const POLL_INTERVAL_MS = 10_000;
+
 
 export default function SuspectsScreen() {
   const [suspects, setSuspects] = useState([]);
   const [error, setError] = useState(null);
+
 
   async function loadSuspects() {
     try {
@@ -23,22 +26,26 @@ export default function SuspectsScreen() {
     }
   }
 
+
   useEffect(() => {
     loadSuspects();
     const intervalId = setInterval(loadSuspects, POLL_INTERVAL_MS);
     return () => clearInterval(intervalId);
   }, []);
 
+
   return (
     <div className="space-y-3 p-4 pb-24">
-      <h1 className="text-xl font-bold text-primary-700">Verdächtige</h1>
+      <h1 className="text-xl font-bold text-primary-700">Verdä¨¤chtige</h1>
       {error && <p className="text-sm text-red-600">{error}</p>}
+
 
       {suspects.length === 0 && (
         <p className="text-sm text-ink/60">
-          Noch keine Verdächtigen entdeckt. Folgt den Hinweisen im Chat!
+          Noch keine Verdä¨¤chtigen entdeckt. Folgt den Hinweisen im Chat!
         </p>
       )}
+
 
       <div className="grid grid-cols-2 gap-3">
         {suspects.map((suspect) => (

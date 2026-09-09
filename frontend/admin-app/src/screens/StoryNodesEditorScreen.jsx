@@ -9,9 +9,15 @@
 // gespeichert ist (braucht eine node_id).
 // GEAENDERT (Phase E, Ermittler-Chat-System): Antworttyp "photo_ref" ergaenzt
 // (Foto-Einreichung, siehe backend/migrations/002_ermittler_chat_phase_e.sql).
+// GEAENDERT (09.09.2026, 22:55 Uhr): media_type/media_url-Felder ergaenzt --
+// ChatScreen.jsx im Team-Frontend rendert bereits audio_ref/video_ref-Clips
+// (Phase F), aber dieser Editor bot bisher keine Moeglichkeit, diese Felder
+// ueberhaupt zu setzen. Unabhaengig vom response_type moeglich (ein
+// Info-Knoten kann z.B. zusaetzlich einen Audio-Clip haben).
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useRallye } from '../context/RallyeContext';
+
 
 
 const NODE_TYPES = [
@@ -20,6 +26,7 @@ const NODE_TYPES = [
   { value: 'twist', label: 'Wendepunkt' },
   { value: 'accusation', label: 'Anklage' }
 ];
+
 
 
 const RESPONSE_TYPES = [
@@ -32,6 +39,15 @@ const RESPONSE_TYPES = [
 ];
 
 
+
+const MEDIA_TYPES = [
+  { value: 'none', label: 'Kein Medium' },
+  { value: 'audio_ref', label: 'Audio-Clip' },
+  { value: 'video_ref', label: 'Video-Clip' }
+];
+
+
+
 const PROACTIVE_TRIGGERS = [
   { value: 'none', label: 'Keiner' },
   { value: 'inactivity', label: 'Inaktivität (Minuten)' },
@@ -39,10 +55,13 @@ const PROACTIVE_TRIGGERS = [
 ];
 
 
+
 const emptyNodeForm = {
   type: 'info',
   message_text: '',
   image_url: '',
+  media_type: 'none',
+  media_url: '',
   map_latitude: '',
   map_longitude: '',
   response_type: 'none',
@@ -59,6 +78,7 @@ const emptyNodeForm = {
 };
 
 
+
 const emptyOptionForm = {
   label: '',
   correct_value: '',
@@ -68,9 +88,11 @@ const emptyOptionForm = {
 };
 
 
+
 function toNullableInt(value) {
   return value === '' || value === null || value === undefined ? null : Number(value);
 }
+
 
 
 export default function StoryNodesEditorScreen() {
@@ -81,15 +103,18 @@ export default function StoryNodesEditorScreen() {
   const [puzzles, setPuzzles] = useState([]);
 
 
+
   const [nodeForm, setNodeForm] = useState(emptyNodeForm);
   const [editingNodeId, setEditingNodeId] = useState(null);
   const [nodeFeedback, setNodeFeedback] = useState(null);
+
 
 
   const [options, setOptions] = useState([]);
   const [optionForm, setOptionForm] = useState(emptyOptionForm);
   const [editingOptionId, setEditingOptionId] = useState(null);
   const [optionFeedback, setOptionFeedback] = useState(null);
+
 
 
   async function loadNodes() {
@@ -99,6 +124,7 @@ export default function StoryNodesEditorScreen() {
   }
 
 
+
   async function loadSuspects() {
     if (!rallyeId) return;
     const result = await api.getSuspects(rallyeId);
@@ -106,11 +132,13 @@ export default function StoryNodesEditorScreen() {
   }
 
 
+
   async function loadStations() {
     if (!rallyeId) return;
     const result = await api.getStations(rallyeId);
     setStations(result.stations || []);
   }
+
 
 
   async function loadPuzzles(stationId) {
@@ -123,6 +151,7 @@ export default function StoryNodesEditorScreen() {
   }
 
 
+
   async function loadOptions(nodeId) {
     if (!nodeId) {
       setOptions([]);
@@ -133,6 +162,7 @@ export default function StoryNodesEditorScreen() {
   }
 
 
+
   useEffect(() => {
     loadNodes();
     loadSuspects();
@@ -140,14 +170,17 @@ export default function StoryNodesEditorScreen() {
   }, [rallyeId]);
 
 
+
   useEffect(() => {
     loadPuzzles(nodeForm.station_id);
   }, [nodeForm.station_id]);
 
 
+
   function handleNodeChange(field, value) {
     setNodeForm((prev) => ({ ...prev, [field]: value }));
   }
+
 
 
   function handleEditNode(node) {
@@ -156,6 +189,8 @@ export default function StoryNodesEditorScreen() {
       type: node.type,
       message_text: node.message_text,
       image_url: node.image_url || '',
+      media_type: node.media_type || 'none',
+      media_url: node.media_url || '',
       map_latitude: node.map_latitude ?? '',
       map_longitude: node.map_longitude ?? '',
       response_type: node.response_type,
@@ -176,6 +211,7 @@ export default function StoryNodesEditorScreen() {
   }
 
 
+
   function handleCancelNodeEdit() {
     setEditingNodeId(null);
     setNodeForm(emptyNodeForm);
@@ -185,12 +221,15 @@ export default function StoryNodesEditorScreen() {
   }
 
 
+
   async function handleSubmitNode(e) {
     e.preventDefault();
     const payload = {
       type: nodeForm.type,
       message_text: nodeForm.message_text,
       image_url: nodeForm.image_url.trim() === '' ? null : nodeForm.image_url.trim(),
+      media_type: nodeForm.media_type,
+      media_url: nodeForm.media_type === 'none' || nodeForm.media_url.trim() === '' ? null : nodeForm.media_url.trim(),
       map_latitude: nodeForm.map_latitude === '' ? null : Number(nodeForm.map_latitude),
       map_longitude: nodeForm.map_longitude === '' ? null : Number(nodeForm.map_longitude),
       response_type: nodeForm.response_type,
@@ -205,6 +244,7 @@ export default function StoryNodesEditorScreen() {
       proactive_after_attempts: toNullableInt(nodeForm.proactive_after_attempts),
       is_active: nodeForm.is_active
     };
+
 
 
     try {
@@ -224,6 +264,7 @@ export default function StoryNodesEditorScreen() {
   }
 
 
+
   async function handleDeleteNode(id) {
     await api.deleteStoryNode(id);
     if (editingNodeId === id) handleCancelNodeEdit();
@@ -231,9 +272,11 @@ export default function StoryNodesEditorScreen() {
   }
 
 
+
   function handleOptionChange(field, value) {
     setOptionForm((prev) => ({ ...prev, [field]: value }));
   }
+
 
 
   function handleEditOption(option) {
@@ -248,10 +291,12 @@ export default function StoryNodesEditorScreen() {
   }
 
 
+
   function handleCancelOptionEdit() {
     setEditingOptionId(null);
     setOptionForm(emptyOptionForm);
   }
+
 
 
   async function handleSubmitOption(e) {
@@ -281,14 +326,17 @@ export default function StoryNodesEditorScreen() {
   }
 
 
+
   async function handleDeleteOption(id) {
     await api.deleteStoryNodeOption(id);
     await loadOptions(editingNodeId);
   }
 
 
+
   const isInfoNode = nodeForm.response_type === 'none';
   const isPhotoNode = nodeForm.response_type === 'photo_ref';
+
 
 
   return (
@@ -297,6 +345,7 @@ export default function StoryNodesEditorScreen() {
         <p className="sm:col-span-2 text-sm text-ink/60">
           {editingNodeId ? `Knoten #${editingNodeId} bearbeiten` : 'Neuen Chat-Knoten anlegen'}
         </p>
+
 
 
         <label className="block">
@@ -313,6 +362,7 @@ export default function StoryNodesEditorScreen() {
             ))}
           </select>
         </label>
+
 
 
         <label className="block">
@@ -337,6 +387,7 @@ export default function StoryNodesEditorScreen() {
         </label>
 
 
+
         <label className="block sm:col-span-2">
           <span className="mb-1 block text-sm font-medium text-ink/80">
             Nachrichtentext (von Freya Lindqvist)
@@ -352,6 +403,7 @@ export default function StoryNodesEditorScreen() {
         </label>
 
 
+
         <label className="block sm:col-span-2">
           <span className="mb-1 block text-sm font-medium text-ink/80">Bild-URL (optional)</span>
           <input
@@ -361,6 +413,44 @@ export default function StoryNodesEditorScreen() {
             onChange={(e) => handleNodeChange('image_url', e.target.value)}
           />
         </label>
+
+
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-ink/80">
+            Medientyp (Audio/Video, optional, unabhängig vom Antworttyp)
+          </span>
+          <select
+            className="input-field"
+            value={nodeForm.media_type}
+            onChange={(e) => handleNodeChange('media_type', e.target.value)}
+          >
+            {MEDIA_TYPES.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+
+
+        {nodeForm.media_type !== 'none' && (
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-ink/80">
+              {nodeForm.media_type === 'audio_ref' ? 'Audio-URL' : 'Video-URL'}
+            </span>
+            <input
+              className="input-field"
+              placeholder={
+                nodeForm.media_type === 'audio_ref' ? '/media/hinweis.mp3' : '/media/hinweis.mp4'
+              }
+              value={nodeForm.media_url}
+              onChange={(e) => handleNodeChange('media_url', e.target.value)}
+            />
+          </label>
+        )}
+
 
 
         <label className="block">
@@ -389,6 +479,7 @@ export default function StoryNodesEditorScreen() {
         </label>
 
 
+
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-ink/80">
             Station-Bezug (optional, für Kartenlink/puzzle_ref)
@@ -406,6 +497,7 @@ export default function StoryNodesEditorScreen() {
             ))}
           </select>
         </label>
+
 
 
         <label className="block">
@@ -433,6 +525,7 @@ export default function StoryNodesEditorScreen() {
         </label>
 
 
+
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-ink/80">
             Offenbart Verdächtigen (optional)
@@ -452,6 +545,7 @@ export default function StoryNodesEditorScreen() {
         </label>
 
 
+
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-ink/80">Punkte</span>
           <input
@@ -469,6 +563,7 @@ export default function StoryNodesEditorScreen() {
         </label>
 
 
+
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -481,6 +576,7 @@ export default function StoryNodesEditorScreen() {
         </label>
 
 
+
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -489,6 +585,7 @@ export default function StoryNodesEditorScreen() {
           />
           <span className="text-sm font-medium text-ink/80">Aktiv</span>
         </label>
+
 
 
         <div className="sm:col-span-2 rounded-lg border border-ink/10 p-3">
@@ -555,6 +652,7 @@ export default function StoryNodesEditorScreen() {
         </div>
 
 
+
         <div className="sm:col-span-2 flex gap-2">
           <button type="submit" className="btn-primary">
             {editingNodeId ? 'Knoten speichern' : 'Knoten anlegen'}
@@ -569,6 +667,7 @@ export default function StoryNodesEditorScreen() {
       {nodeFeedback && <p className="text-sm text-primary-700">{nodeFeedback}</p>}
 
 
+
       {editingNodeId && (
         <div className="card space-y-3">
           <h2 className="text-lg font-bold text-primary-700">
@@ -581,6 +680,7 @@ export default function StoryNodesEditorScreen() {
                 ? 'Bei Foto-Knoten wird höchstens EINE Option ausgewertet: deren leads_to_node_id (falls gesetzt) wird nach dem Einreichen automatisch als Folgeknoten zugestellt.'
                 : 'Diese Optionen erscheinen als sichtbare Buttons im Team-Chat.'}
           </p>
+
 
 
           <ul className="space-y-2">
@@ -610,6 +710,7 @@ export default function StoryNodesEditorScreen() {
           </ul>
 
 
+
           <form onSubmit={handleSubmitOption} className="grid gap-3 border-t pt-3 sm:grid-cols-2">
             <label className="block sm:col-span-2">
               <span className="mb-1 block text-sm font-medium text-ink/80">
@@ -625,6 +726,7 @@ export default function StoryNodesEditorScreen() {
             </label>
 
 
+
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-ink/80">
                 Korrekter Wert (nur bei Antworttyp Text/Zahl)
@@ -636,6 +738,7 @@ export default function StoryNodesEditorScreen() {
                 onChange={(e) => handleOptionChange('correct_value', e.target.value)}
               />
             </label>
+
 
 
             <label className="block">
@@ -657,6 +760,7 @@ export default function StoryNodesEditorScreen() {
             </label>
 
 
+
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-ink/80">
                 Blockiert alternativen Knoten (optional, für Wendepunkte)
@@ -674,6 +778,7 @@ export default function StoryNodesEditorScreen() {
                 ))}
               </select>
             </label>
+
 
 
             <label className="block">
@@ -695,6 +800,7 @@ export default function StoryNodesEditorScreen() {
             </label>
 
 
+
             <div className="sm:col-span-2 flex gap-2">
               <button type="submit" className="btn-primary">
                 {editingOptionId ? 'Option speichern' : 'Option hinzufügen'}
@@ -709,6 +815,7 @@ export default function StoryNodesEditorScreen() {
           {optionFeedback && <p className="text-sm text-primary-700">{optionFeedback}</p>}
         </div>
       )}
+
 
 
       <div className="card">
@@ -726,6 +833,7 @@ export default function StoryNodesEditorScreen() {
                 <p className="text-xs text-ink/50">
                   {NODE_TYPES.find((t) => t.value === n.type)?.label || n.type} ·{' '}
                   {RESPONSE_TYPES.find((t) => t.value === n.response_type)?.label || n.response_type} ·{' '}
+                  {n.media_type && n.media_type !== 'none' && `${MEDIA_TYPES.find((m) => m.value === n.media_type)?.label} · `}
                   {n.points} Punkte
                 </p>
               </div>

@@ -1,11 +1,18 @@
 // team-app/src/screens/PuzzlesScreen.jsx
 // v6: <BottomNav /> ergänzt -- diese Seite hatte bisher als einzige gar
 // keine Navigation, Teams mussten den Zurück-Button des Browsers nutzen.
+// GEFIXT (09.09.2026, 23:10 Uhr): Beim Absenden einer Antwort wird jetzt
+// explizit "hint_used: true" mitgesendet, falls zuvor ein Hinweis angefordert
+// wurde. Ohne dieses Flag kann puzzles/submit.php den Punktabzug nicht
+// vornehmen, und der DB-Trigger update_team_progress_after_attempt zählt
+// total_hints_used / total_points nicht korrekt (siehe 00_Project_Brief...,
+// Punkt 14 + submit.php-Kommentar).
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useGameStatus } from '../context/GameStatusContext';
 import BottomNav from '../components/BottomNav';
+
 
 export default function PuzzlesScreen() {
   const { id } = useParams();
@@ -14,6 +21,8 @@ export default function PuzzlesScreen() {
   const [answers, setAnswers] = useState({});
   const [feedback, setFeedback] = useState({});
   const [revealedClue, setRevealedClue] = useState(null);
+  const [hintRequestedFor, setHintRequestedFor] = useState({});
+
 
   useEffect(() => {
     (async () => {
@@ -22,11 +31,13 @@ export default function PuzzlesScreen() {
     })();
   }, [id]);
 
+
   async function handleSubmit(puzzleId, providedAnswer) {
     if (!canAct) return;
     const answer = providedAnswer !== undefined ? providedAnswer : answers[puzzleId] || '';
     try {
-      const result = await api.submitAnswer(puzzleId, answer);
+      const hintUsed = !!hintRequestedFor[puzzleId];
+      const result = await api.submitAnswer(puzzleId, answer, hintUsed);
       setFeedback((prev) => ({ ...prev, [puzzleId]: result.message }));
       if (result.is_correct && result.story_clue) {
         setRevealedClue(result.story_clue);
@@ -35,10 +46,16 @@ export default function PuzzlesScreen() {
         const refreshed = await api.getPuzzles(id);
         setPuzzles(refreshed.puzzles || []);
       }
+      // Hinweis-Flag zurücksetzen, damit ein zweiter Versuch ohne Hinweis
+      // wieder ohne Abzug zählt.
+      if (hintUsed) {
+        setHintRequestedFor((prev) => ({ ...prev, [puzzleId]: false }));
+      }
     } catch (err) {
       setFeedback((prev) => ({ ...prev, [puzzleId]: err.message }));
     }
   }
+
 
   async function handleHint(puzzleId) {
     if (!canAct) return;
@@ -49,10 +66,14 @@ export default function PuzzlesScreen() {
         ...prev,
         [puzzleId]: `💡 Hinweis${penaltyText}: ${result.hint}`
       }));
+      // Merken, dass für dieses Rätsel ein Hinweis angefordert wurde --
+      // wird beim nächsten submitAnswer als hint_used: true mitgesendet.
+      setHintRequestedFor((prev) => ({ ...prev, [puzzleId]: true }));
     } catch (err) {
       setFeedback((prev) => ({ ...prev, [puzzleId]: err.message }));
     }
   }
+
 
   function renderAnswerInput(puzzle) {
     if (puzzle.type === 'multiple_choice') {
@@ -77,6 +98,7 @@ export default function PuzzlesScreen() {
       );
     }
 
+
     if (puzzle.type === 'number') {
       return (
         <input
@@ -89,6 +111,7 @@ export default function PuzzlesScreen() {
       );
     }
 
+
     return (
       <input
         className="input-field disabled:cursor-not-allowed disabled:opacity-50"
@@ -99,10 +122,11 @@ export default function PuzzlesScreen() {
     );
   }
 
+
   function renderMedia(puzzle) {
     if (!puzzle.media_url) return null;
     if (puzzle.type === 'image') {
-      return <img src={puzzle.media_url} alt="Rätselbild" className="mb-2 max-h-64 w-full rounded-lg object-cover" />;
+      return <img src={puzzle.media_url} alt="Rä¨¤tselbild" className="mb-2 max-h-64 w-full rounded-lg object-cover" />;
     }
     if (puzzle.type === 'audio') {
       return <audio src={puzzle.media_url} controls className="mb-2 w-full" />;
@@ -113,19 +137,22 @@ export default function PuzzlesScreen() {
     return null;
   }
 
+
   return (
     <div className="min-h-screen bg-surface px-4 pb-24 pt-16">
-      <h1 className="mb-4 text-xl font-bold text-primary-700">Rätsel</h1>
+      <h1 className="mb-4 text-xl font-bold text-primary-700">Rä¨¤tsel</h1>
+
 
       {revealedClue && (
         <div className="card mb-4 border-l-4 border-l-accent-500 bg-accent-500/5">
-          <p className="mb-1 text-sm font-bold text-accent-600">🕵️ Neues Beweisstück entdeckt!</p>
+          <p className="mb-1 text-sm font-bold text-accent-600">🕵️ Neues Beweisstueck entdeckt!</p>
           <p className="text-ink">{revealedClue}</p>
           <Link to="/ermittlungsakte" className="mt-2 inline-block text-sm font-semibold text-primary-700 underline">
             Zur Ermittlungsakte →
           </Link>
         </div>
       )}
+
 
       <div className="space-y-4">
         {puzzles.map((puzzle) => (
@@ -159,12 +186,13 @@ export default function PuzzlesScreen() {
               </>
             )}
             {puzzle.is_solved && (
-              <p className="text-sm font-semibold text-primary-700">✓ Gelöst</p>
+              <p className="text-sm font-semibold text-primary-700">✓ Gelö¨¤°st</p>
             )}
             {feedback[puzzle.id] && <p className="text-sm text-primary-700">{feedback[puzzle.id]}</p>}
           </div>
         ))}
       </div>
+
 
       <BottomNav />
     </div>

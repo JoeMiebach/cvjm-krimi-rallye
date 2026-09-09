@@ -8,7 +8,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 
+
 const POLL_INTERVAL_MS = 10_000;
+
 
 const TYPE_LABELS = {
   info: 'Hinweis',
@@ -17,10 +19,12 @@ const TYPE_LABELS = {
   accusation: 'Anklage'
 };
 
+
 export default function OpenTasksScreen() {
   const [tasks, setTasks] = useState([]);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+
 
   async function loadTasks() {
     try {
@@ -32,22 +36,26 @@ export default function OpenTasksScreen() {
     }
   }
 
+
   useEffect(() => {
     loadTasks();
     const intervalId = setInterval(loadTasks, POLL_INTERVAL_MS);
     return () => clearInterval(intervalId);
   }, []);
 
+
   return (
     <div className="space-y-3 p-4 pb-24">
       <h1 className="text-xl font-bold text-primary-700">Offene Aufgaben</h1>
       {error && <p className="text-sm text-red-600">{error}</p>}
+
 
       {tasks.length === 0 && (
         <p className="text-sm text-ink/60">
           Gerade keine offenen Aufgaben. Schau im Chat vorbei, ob Freya sich meldet!
         </p>
       )}
+
 
       <div className="space-y-2">
         {tasks.map((task) => (
