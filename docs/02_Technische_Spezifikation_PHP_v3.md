@@ -1,7 +1,7 @@
 # Technische Spezifikation: Viking-Schatz Rallye (PHP / MySQL / Hosting Basic) - Version 3
 
 **Ersetzt:** 02_Technische_Spezifikation_PHP.md (v2.0, bitte archivieren)
-**Stand:** 09.09.2026, 13:20 Uhr (Deploy-Workflow-Fix: .htaccess-Upload korrigiert)
+**Stand:** 09.09.2026, 13:41 Uhr (fehlendes basename in team-app behoben)
 
 ## System-Architektur (aktualisiert)
 
@@ -141,6 +141,15 @@ zwar korrekt in `dist/.htaccess`, wurde vom Haupt-Upload-Schritt aber schlicht u
 Fix in `.github/workflows/deploy-frontend.yml`: pro App ein zusaetzlicher
 SFTP-Deploy-Action-Schritt, der `local_path` direkt auf `dist/.htaccess` zeigt
 (Einzeldatei-Modus statt Wildcard-Glob) und dieselbe Datei explizit nachliefert.
+
+**NACHTRAG (09.09.2026, 13:41 Uhr) -- fehlendes `basename` in team-app:** `team-app/src/main.jsx`
+setzte am `BrowserRouter` kein `basename="/team"` (im Unterschied zur `admin-app`, die bereits
+korrekt `basename="/admin"` nutzte). Dadurch kannte der Router seinen eigenen URL-Praefix nicht:
+Ein interner Redirect (z. B. von `StartScreen` nach erfolgreichem Auth-Check zu `/stations`)
+landete absolut auf `joe-miebach.de/stations` statt `joe-miebach.de/team/stations` -- ausserhalb
+des Verzeichnisses, fuer das die SPA-Rewrite-`.htaccess` gilt. Symptom: Aufruf von `joe-miebach.de/team`
+leitete zu `joe-miebach.de/stations` weiter, das nach Reload 404 lieferte. Fix: `basename="/team"`
+ergaenzt.
 
 ---
 
