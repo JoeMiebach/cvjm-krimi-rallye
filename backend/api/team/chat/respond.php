@@ -19,15 +19,18 @@ if ($log['response_type'] === 'none') jsonError(400, 'Dieser Knoten erfordert ke
 
 $attempts = (int)$log['attempts'] + 1;
 $pdo->prepare("UPDATE team_story_log SET attempts = ? WHERE id = ?")->execute([$attempts, $log['log_id']]);
+
 $isCorrect = false;
 $matchedOption = null;
 $accusationReactionText = null;
+$teamResponseValue = $response; // Default: Text/Zahl-Eingabe
 
 if ($log['response_type'] === 'buttons') {
   $optStmt = $pdo->prepare("SELECT * FROM story_node_options WHERE id = ? AND node_id = ?");
   $optStmt->execute([(int)$response, $nodeId]);
   $matchedOption = $optStmt->fetch();
   if ($matchedOption) {
+    $teamResponseValue = $matchedOption['label']; // Speichere Label statt ID
     if ($log['type'] === 'accusation') {
       $suspectStmt = $pdo->prepare("SELECT is_guilty, wrong_pick_reaction_text FROM suspects WHERE id = ?");
       $suspectStmt->execute([(int)$matchedOption['unlocks_suspect_id']]);
@@ -49,7 +52,8 @@ if (!$isCorrect) {
   jsonResponse(200, ['success' => true, 'is_correct' => false, 'reaction_text' => $accusationReactionText]);
 }
 
-$pdo->prepare("UPDATE team_story_log SET is_completed = 1, responded_at = NOW(), team_response = ? WHERE id = ?")->execute([$response, $log['log_id']]);
+$pdo->prepare("UPDATE team_story_log SET is_completed = 1, responded_at = NOW(), team_response = ? WHERE id = ?")->execute([$teamResponseValue, $log['log_id']]);
+
 $bonusAwarded = false;
 if ($log['type'] === 'accusation') {
   if ($attempts === 1) {

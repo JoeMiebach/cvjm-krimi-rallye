@@ -7,6 +7,7 @@ requireAdminOrViewerAuth();
 $rallyeId = (int)($_GET['rallye_id'] ?? 0);
 if ($rallyeId === 0) jsonError(400, 'rallye_id fehlt');
 
-$stmt = $pdo->prepare("SELECT * FROM leaderboard WHERE rallye_id = ? ORDER BY total_points DESC, started_at ASC");
+$stmt = $pdo->prepare("SELECT team_id, team_name, stations_completed, total_points, total_hints_used FROM leaderboard WHERE rallye_id = ? ORDER BY total_points DESC, started_at ASC");
 $stmt->execute([$rallyeId]);
+
 jsonResponse(200, ['success' => true, 'leaderboard' => $stmt->fetchAll()]);
