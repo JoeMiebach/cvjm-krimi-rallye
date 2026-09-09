@@ -3,8 +3,21 @@
 **Arbeitstitel:** Der verschwundene Viking-Schatz
 **Produkt:** Wiederverwendbare mobile Webapp fuer Krimi-Stadtrallyes auf Jugendfreizeiten
 **Projektstatus:** Implementierung laeuft (Frontend + Backend bereits groesstenteils umgesetzt)
-**Stand:** 09.09.2026 (Ergaenzung 16:05 Uhr: Ermittler-Chat Phase D implementiert)
+**Stand:** 09.09.2026 (Ergaenzung 17:40 Uhr: Ermittler-Chat Phase E implementiert; siehe Punkt 17 und Hinweis zum Datenrettungs-Vorfall unten)
 **Ersetzt:** 00_Project_Brief_Entscheidungslog_v2.md (bitte archivieren, z. B. als `ARCHIV_00_..._v2.md`)
+
+---
+
+## Hinweis: Datenrettungs-Vorfall Phase E (09.09.2026)
+
+Der erste Versuch, Phase E zu committen (Commit `cd72a3f`), hat versehentlich grosse Teile
+mehrerer bestehender Dateien geloescht (u. a. beide `App.jsx`, beide `api/client.js`,
+`ChatScreen.jsx`, `StoryNodesEditorScreen.jsx`, sowie Teile dieser beiden Dokumentationsdateien).
+Der Fehler wurde erkannt, die betroffenen Code-Dateien wurden auf Basis der echten,
+vom Projektinhaber bereitgestellten Inhalte additiv korrigiert (Commit `be0295b`), und diese
+beiden Dokumentationsdateien werden hiermit ebenfalls auf ihren echten Phase-D-Stand
+wiederhergestellt und um Phase E ergaenzt. Lehre daraus: GitHub-Dateiinhalte muessen vor
+Ueberschreiben immer verifiziert vorliegen, nicht aus dem Gedaechtnis rekonstruiert werden.
 
 ---
 
@@ -23,17 +36,18 @@
    versehentlich committet, per Git-History-Rewrite entfernt, alle betroffenen Secrets rotiert.
 6. **Cleanup-Bug behoben:** Positionsdaten wurden faelschlich sofort nach Rallye-Ende geloescht,
    unabhaengig vom tatsaechlichen Alter der Daten -- jetzt altersbasiert (Standard: 4 Stunden).
-7. **Datenbankschema-Abgleich gegen Live-Dump (09.09.2026):** siehe Schema v3/v4.
+7. **Datenbankschema-Abgleich gegen Live-Dump (09.09.2026):** siehe Schema v4 (v5 war ein
+   fehlerhafter Stub aus dem Phase-E-Vorfall und wurde als veraltet markiert).
 8. **Rallye-Auswahl im Admin-UI (09.09.2026):** Die feste `VITE_DEFAULT_RALLYE_ID=1` ist durch
    einen im Admin-UI waehlbaren Dropdown ersetzt (siehe Punkt 15).
 9. **Startcodes in Teams-Verwaltung integriert (09.09.2026):** Der eigenstaendige
    `StartCodesScreen.jsx` entfaellt, seine Funktionen sind jetzt Teil von `TeamsScreen.jsx`
    (siehe Punkt 16).
-10. **Ermittler-Chat-System, Phase A-D (09.09.2026):** Grundlegender Umbau der Spiel-Story von
+10. **Ermittler-Chat-System, Phase A-E (09.09.2026):** Grundlegender Umbau der Spiel-Story von
     einer Stationsliste zu einem interaktiven Chat mit Freya Lindqvist. Backend-Kern (Phase A),
-    Team-App-Chat (Phase B), Verdaechtigen-Galerie + finale Anklage (Phase C) und
-    Admin-Content-Editor fuer Knoten/Verdaechtige (Phase D) implementiert. `CaseFileScreen.jsx`
-    geloescht (siehe Punkt 17).
+    Team-App-Chat (Phase B), Verdaechtigen-Galerie + finale Anklage (Phase C),
+    Admin-Content-Editor fuer Knoten/Verdaechtige (Phase D) und Foto-Einreichung mit
+    Admin-Review (Phase E) implementiert. `CaseFileScreen.jsx` geloescht (siehe Punkt 17).
 
 ---
 
@@ -137,10 +151,26 @@
       analog zu `/puzzles`).
     - Kein Backend-Update noetig -- alle drei Endpunkte existierten bereits aus Phase A.
 
-    **Noch NICHT umgesetzt:** Foto-Einreichung (Phase E), Avatare/Sinnesreize/Offline-
-    Warteschlange (Phase F). Das alte `story_clue`-System (Backend-Endpoint `GET
-    /team/clues.php`, Tabelle `team_story_clues`) laeuft bis zum Abschluss der Migration
-    unveraendert weiter, wird aber vom Frontend nicht mehr aufgerufen.
+    **Phase E implementiert (Foto-Einreichung + Admin-Review, 09.09.2026, korrigiert 17:33 Uhr):**
+    - Neuer Antworttyp `photo_ref` fuer `story_nodes.response_type` (Migration
+      `backend/migrations/002_ermittler_chat_phase_e.sql`, MUSS nach Migration 001 manuell auf der
+      produktiven Datenbank ausgefuehrt werden). Neue Tabelle `photo_submissions` (team_id,
+      node_id, photo_path, submitted_at, points_awarded_at, points_awarded_by_admin_id).
+    - Neuer Team-Endpunkt `POST /team/photos/submit.php` (multipart/form-data): JPEG/PNG/WebP
+      bis 8 MB, Speicherung unter `/uploads/photos/`, markiert den Knoten sofort als
+      abgeschlossen.
+    - Neue Admin-Endpunkte `GET /admin/photo-submissions.php` (Liste) und `POST
+      /admin/photo-submissions/award.php` (einmalige Punktevergabe, gesperrt durch
+      `points_awarded_at`).
+    - `ChatScreen.jsx` um Foto-Upload-Formular und Thumbnail-Anzeige eingereichter Fotos
+      ergaenzt. Neuer Admin-Screen `PhotoSubmissionsScreen.jsx` (Route `/photo-submissions`)
+      fuer die Sichtpruefung.
+    - Details siehe `docs/06_Phase_E_Foto_Einreichung.md`.
+
+    **Noch NICHT umgesetzt:** Avatare/Sinnesreize/Offline-Warteschlange (Phase F). Das alte
+    `story_clue`-System (Backend-Endpoint `GET /team/clues.php`, Tabelle `team_story_clues`)
+    laeuft bis zum Abschluss der Migration unveraendert weiter, wird aber vom Frontend nicht
+    mehr aufgerufen.
 
 ## Weiterhin offen
 
@@ -150,16 +180,17 @@
 4. Konkrete Domain fuer das Hosting-Paket (aktuell Platzhalter, siehe technische Spezifikation)
 5. Die eigene Live-Positionsanzeige des Teams (`watchPosition`-basiert) muss noch auf
    die echte Codebasis angepasst werden.
-6. Ermittler-Chat Phase E-F (siehe Punkt 17) -- Foto-Einreichung,
-   Avatare/Sinnesreize/Offline-Warteschlange.
+6. Ermittler-Chat Phase F (siehe Punkt 17) -- Avatare/Sinnesreize/Offline-Warteschlange.
 7. Migration: Wann wird `team_story_clues`/`GET /team/clues.php` final entfernt (nach
-   erfolgreichem Praxistest von Phase A-D)?
+   erfolgreichem Praxistest von Phase A-E)?
 8. Lesbarkeit der 6-teiligen Bottom-Nav auf kleinen Viewports pruefen.
 9. Exaktes Bildformat/Speicherort fuer Verdaechtigen-Portraits (`portrait_icon`) noch offen --
    an bestehende `media_url`-Konvention anlehnen.
 10. Der Admin-Editor (Phase D) ist jetzt technisch fertig, aber es sind noch KEINE echten
     Knoten/Verdaechtigen fuer eine reale Rallye angelegt -- reine Redaktionsarbeit, kein
     Programmieraufwand mehr.
+11. Speicherplatz- und Backup-Strategie fuer `/uploads/photos/` auf STRATO festlegen.
+12. Datenschutz-/Einwilligungstexte fuer Foto-Einsendungen Minderjaehriger ergaenzen.
 
 ## Datenschutz-Hinweis (unveraendert aus v1/v2)
 
