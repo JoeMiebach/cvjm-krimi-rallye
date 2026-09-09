@@ -1,9 +1,9 @@
 // team-app/src/App.jsx
-// v4: Route für die neue Stationskarte (StationsMapScreen) ergänzt.
-// WICHTIG: Ein Navigations-Link zu "/karte" fehlt hier noch -- ich kenne
-// eure Bottom-Nav/Menü-Komponente nicht (nicht in den bisher gesehenen
-// Dateien enthalten). Bitte dort manuell einen Link auf "/karte" ergänzen,
-// oder schick mir die Nav-Komponente, dann mache ich das passend dazu.
+// v4: Route für die Stationskarte (StationsMapScreen) ergänzt.
+// GEAENDERT (Phase B, Ermittler-Chat-System): Route "/ermittlungsakte"
+// (CaseFileScreen) entfernt -- vollstaendig abgeloest durch "/chat"
+// (ChatScreen) und "/open-tasks" (OpenTasksScreen), siehe
+// 05_Technische_Spezifikation_Ermittler_Chat_v1.md.
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { GameStatusProvider } from './context/GameStatusContext';
@@ -14,7 +14,8 @@ import StationsMapScreen from './screens/StationsMapScreen';
 import PuzzlesScreen from './screens/PuzzlesScreen';
 import LeaderboardScreen from './screens/LeaderboardScreen';
 import BroadcastsScreen from './screens/BroadcastsScreen';
-import CaseFileScreen from './screens/CaseFileScreen';
+import ChatScreen from './screens/ChatScreen';
+import OpenTasksScreen from './screens/OpenTasksScreen';
 import BroadcastBanner from './components/BroadcastBanner';
 import GeofenceStatus from './components/GeofenceStatus';
 import GameStatusBanner from './components/GameStatusBanner';
@@ -74,10 +75,18 @@ export default function App() {
             }
           />
           <Route
-            path="/ermittlungsakte"
+            path="/chat"
             element={
               <ProtectedRoute>
-                <CaseFileScreen />
+                <ChatScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/open-tasks"
+            element={
+              <ProtectedRoute>
+                <OpenTasksScreen />
               </ProtectedRoute>
             }
           />

@@ -1,4 +1,9 @@
 // team-app/src/api/client.js
+// NEU (Phase B, Ermittler-Chat-System): getChat(), respondToChat(), getOpenTasks()
+// ergaenzt. getClues() (altes Ermittlungsakte-System) entfernt -- CaseFileScreen.jsx
+// wurde geloescht, nichts ruft diese Funktion mehr auf (Backend-Endpoint
+// GET /team/clues.php bleibt vorerst bestehen, siehe Migrationsplan in
+// 05_Technische_Spezifikation_Ermittler_Chat_v1.md).
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 if (!API_BASE_URL) {
@@ -88,5 +93,10 @@ export const api = {
   getProgress: () => request('/team/progress.php'),
   getLeaderboard: (rallyeId) => request('/leaderboard.php', { query: { rallye_id: rallyeId } }),
   getBroadcasts: (since) => request('/team/broadcasts.php', { query: { since } }),
-  getClues: () => request('/team/clues.php') // NEU: Ermittlungsakte
+
+  // NEU (Phase B): Ermittler-Chat-System
+  getChat: () => request('/team/chat.php'),
+  respondToChat: (nodeId, response) =>
+    request('/team/chat/respond.php', { method: 'POST', body: { node_id: nodeId, response } }),
+  getOpenTasks: () => request('/team/open-tasks.php')
 };

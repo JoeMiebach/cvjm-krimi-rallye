@@ -1,8 +1,10 @@
 // team-app/src/components/BottomNav.jsx
-// NEU: Gemeinsame Bottom-Navigation, ersetzt die bisher in jeder Screen-Datei
-// einzeln duplizierten <nav>-Blöcke. Vorteile: "Karte"-Link musste nur an
-// EINER Stelle ergänzt werden, und die Badge-Anzeige (unreadCount) ist jetzt
-// überall konsistent (vorher fehlte sie z. B. in BroadcastsScreen.jsx).
+// Gemeinsame Bottom-Navigation.
+// GEAENDERT (Phase B, Ermittler-Chat-System): Link "Akte" (/ermittlungsakte)
+// ersetzt durch "Chat" (/chat); neuer Link "Aufgaben" (/open-tasks) ergaenzt.
+// HINWEIS: Damit sind es jetzt 6 Nav-Items auf einer mobilen Bottom-Nav --
+// bei Gelegenheit pruefen, ob das auf 375px-Viewports noch gut lesbar ist,
+// ggf. "Aufgaben" spaeter in den Chat-Header statt in die Bottom-Nav verschieben.
 import { Link } from 'react-router-dom';
 import { useBroadcasts } from '../context/BroadcastsContext';
 
@@ -17,8 +19,11 @@ export default function BottomNav() {
       <Link to="/karte" className="btn-secondary flex-1 rounded-none border-0">
         Karte
       </Link>
-      <Link to="/ermittlungsakte" className="btn-secondary flex-1 rounded-none border-0">
-        Akte
+      <Link to="/chat" className="btn-secondary flex-1 rounded-none border-0">
+        Chat
+      </Link>
+      <Link to="/open-tasks" className="btn-secondary flex-1 rounded-none border-0">
+        Aufgaben
       </Link>
       <Link to="/broadcasts" className="btn-secondary relative flex-1 rounded-none border-0">
         Nachrichten
