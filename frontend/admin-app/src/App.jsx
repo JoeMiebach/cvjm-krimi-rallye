@@ -4,6 +4,8 @@
 // ENTFERNT (09.09.2026): Route/Nav-Link "/start-codes" -- StartCodesScreen.jsx
 // wurde geloescht, seine Funktionen sind jetzt Teil von TeamsScreen.jsx.
 // Siehe 00_Project_Brief_Entscheidungslog_v3.md, Punkt 16.
+// NEU (Phase D, Ermittler-Chat-System): Routen/Nav-Links "/story-nodes"
+// (StoryNodesEditorScreen) und "/suspects" (SuspectsEditorScreen) ergaenzt.
 import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { RallyeProvider, useRallye } from './context/RallyeContext';
@@ -13,6 +15,8 @@ import RallyesScreen from './screens/RallyesScreen';
 import TeamsScreen from './screens/TeamsScreen';
 import StationsEditorScreen from './screens/StationsEditorScreen';
 import PuzzlesEditorScreen from './screens/PuzzlesEditorScreen';
+import StoryNodesEditorScreen from './screens/StoryNodesEditorScreen';
+import SuspectsEditorScreen from './screens/SuspectsEditorScreen';
 import BroadcastsScreen from './screens/BroadcastsScreen';
 import LeaderboardScreen from './screens/LeaderboardScreen';
 import MapScreen from './screens/MapScreen';
@@ -66,6 +70,8 @@ function AppShell({ children }) {
             <Link to="/teams">Teams</Link>
             <Link to="/stations">Stationen</Link>
             <Link to="/puzzles">Rätsel</Link>
+            <Link to="/story-nodes">Chat-Knoten</Link>
+            <Link to="/suspects">Verdächtige</Link>
             <Link to="/broadcasts">Broadcasts</Link>
             <Link to="/leaderboard">Rangliste</Link>
             <Link to="/map">Karte</Link>
@@ -127,6 +133,22 @@ export default function App() {
         element={
           <ProtectedRoute requireAdmin>
             <AppShell><PuzzlesEditorScreen /></AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/story-nodes"
+        element={
+          <ProtectedRoute requireAdmin>
+            <AppShell><StoryNodesEditorScreen /></AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/suspects"
+        element={
+          <ProtectedRoute requireAdmin>
+            <AppShell><SuspectsEditorScreen /></AppShell>
           </ProtectedRoute>
         }
       />

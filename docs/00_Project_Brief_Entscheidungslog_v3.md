@@ -3,7 +3,7 @@
 **Arbeitstitel:** Der verschwundene Viking-Schatz
 **Produkt:** Wiederverwendbare mobile Webapp fuer Krimi-Stadtrallyes auf Jugendfreizeiten
 **Projektstatus:** Implementierung laeuft (Frontend + Backend bereits groesstenteils umgesetzt)
-**Stand:** 09.09.2026 (Ergaenzung 15:47 Uhr: Ermittler-Chat Phase C implementiert)
+**Stand:** 09.09.2026 (Ergaenzung 16:05 Uhr: Ermittler-Chat Phase D implementiert)
 **Ersetzt:** 00_Project_Brief_Entscheidungslog_v2.md (bitte archivieren, z. B. als `ARCHIV_00_..._v2.md`)
 
 ---
@@ -29,10 +29,11 @@
 9. **Startcodes in Teams-Verwaltung integriert (09.09.2026):** Der eigenstaendige
    `StartCodesScreen.jsx` entfaellt, seine Funktionen sind jetzt Teil von `TeamsScreen.jsx`
    (siehe Punkt 16).
-10. **Ermittler-Chat-System, Phase A-C (09.09.2026):** Grundlegender Umbau der Spiel-Story von
+10. **Ermittler-Chat-System, Phase A-D (09.09.2026):** Grundlegender Umbau der Spiel-Story von
     einer Stationsliste zu einem interaktiven Chat mit Freya Lindqvist. Backend-Kern (Phase A),
-    Team-App-Chat (Phase B) und Verdaechtigen-Galerie + finale Anklage (Phase C) implementiert.
-    `CaseFileScreen.jsx` geloescht (siehe Punkt 17).
+    Team-App-Chat (Phase B), Verdaechtigen-Galerie + finale Anklage (Phase C) und
+    Admin-Content-Editor fuer Knoten/Verdaechtige (Phase D) implementiert. `CaseFileScreen.jsx`
+    geloescht (siehe Punkt 17).
 
 ---
 
@@ -118,18 +119,28 @@
       OHNE `is_guilty`/`wrong_pick_reaction_text` (Spoiler-Schutz).
     - `POST /team/chat/respond.php` erweitert: bei falscher Anklage wird jetzt zusaetzlich
       `reaction_text` (aus `suspects.wrong_pick_reaction_text`) zurueckgegeben.
-    - Neuer Screen `SuspectsScreen.jsx` (Galerie), Route `/suspects`. **Bewusst NICHT** in die
-      Bottom-Nav aufgenommen (waere 7. Eintrag, zu eng auf 375px) -- stattdessen als Button im
-      `ChatScreen`-Header verlinkt.
-    - `ChatScreen.jsx` zeigt bei falscher Text-/Zahl- oder Anklage-Antwort jetzt eine kurze
-      Feedback-Zeile in der Bubble an.
-    - Kein neues DB-Schema noetig -- `suspects`, `reveals_suspect_id`, `unlocks_suspect_id` kamen
-      bereits mit Phase A.
+    - Neuer Screen `SuspectsScreen.jsx` (Galerie), Route `/suspects`. Bewusst NICHT in die
+      Bottom-Nav aufgenommen -- stattdessen als Button im `ChatScreen`-Header verlinkt.
+    - Kein neues DB-Schema noetig.
 
-    **Noch NICHT umgesetzt:** Admin-Content-Editor-UI (Phase D), Foto-Einreichung (Phase E),
-    Avatare/Sinnesreize/Offline-Warteschlange (Phase F). Das alte `story_clue`-System
-    (Backend-Endpoint `GET /team/clues.php`, Tabelle `team_story_clues`) laeuft bis zum
-    Abschluss der Migration unveraendert weiter, wird aber vom Frontend nicht mehr aufgerufen.
+    **Phase D implementiert (Admin-Content-Editor):**
+    - `admin-app/src/screens/StoryNodesEditorScreen.jsx` (NEU) -- Tabellen-Editor fuer Knoten
+      inkl. verschachtelter Verwaltung ihrer Antwortoptionen (eigene Datensaetze mit eigener
+      `option_id`, da `leads_to_node_id`/`blocks_alternate_node_id`/`unlocks_suspect_id`
+      referenziert werden koennen muessen -- anders als das eingebettete Antworten-Array bei
+      Raetseln). Optionen koennen erst verwaltet werden, sobald der Knoten gespeichert ist.
+    - `admin-app/src/screens/SuspectsEditorScreen.jsx` (NEU) -- einfacher CRUD-Editor
+      (Name, Portrait-URL, `is_guilty`-Checkbox mit Warnhinweis bei mehreren Schuldigen,
+      `wrong_pick_reaction_text`).
+    - `client.js` um CRUD fuer `story-nodes.php`, `story-node-options.php`, `suspects.php`
+      ergaenzt. Neue Nav-Links/Routen `/story-nodes` und `/suspects` (beide `requireAdmin`,
+      analog zu `/puzzles`).
+    - Kein Backend-Update noetig -- alle drei Endpunkte existierten bereits aus Phase A.
+
+    **Noch NICHT umgesetzt:** Foto-Einreichung (Phase E), Avatare/Sinnesreize/Offline-
+    Warteschlange (Phase F). Das alte `story_clue`-System (Backend-Endpoint `GET
+    /team/clues.php`, Tabelle `team_story_clues`) laeuft bis zum Abschluss der Migration
+    unveraendert weiter, wird aber vom Frontend nicht mehr aufgerufen.
 
 ## Weiterhin offen
 
@@ -139,13 +150,16 @@
 4. Konkrete Domain fuer das Hosting-Paket (aktuell Platzhalter, siehe technische Spezifikation)
 5. Die eigene Live-Positionsanzeige des Teams (`watchPosition`-basiert) muss noch auf
    die echte Codebasis angepasst werden.
-6. Ermittler-Chat Phase D-F (siehe Punkt 17) -- Admin-Editor, Foto-Einreichung,
+6. Ermittler-Chat Phase E-F (siehe Punkt 17) -- Foto-Einreichung,
    Avatare/Sinnesreize/Offline-Warteschlange.
 7. Migration: Wann wird `team_story_clues`/`GET /team/clues.php` final entfernt (nach
-   erfolgreichem Praxistest von Phase A-C)?
+   erfolgreichem Praxistest von Phase A-D)?
 8. Lesbarkeit der 6-teiligen Bottom-Nav auf kleinen Viewports pruefen.
 9. Exaktes Bildformat/Speicherort fuer Verdaechtigen-Portraits (`portrait_icon`) noch offen --
-   an bestehende `media_url`-Konvention anlehnen (siehe 05_Technische_Spezifikation, Abschnitt 6).
+   an bestehende `media_url`-Konvention anlehnen.
+10. Der Admin-Editor (Phase D) ist jetzt technisch fertig, aber es sind noch KEINE echten
+    Knoten/Verdaechtigen fuer eine reale Rallye angelegt -- reine Redaktionsarbeit, kein
+    Programmieraufwand mehr.
 
 ## Datenschutz-Hinweis (unveraendert aus v1/v2)
 
