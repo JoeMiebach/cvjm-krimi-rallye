@@ -1,10 +1,14 @@
 <?php
 // POST /api/team/chat/respond.php - siehe 05_Technische_Spezifikation_Ermittler_Chat_v1.md
-// NEU (Phase A): Team beantwortet einen Chat-Knoten (Button-Wahl, Text- oder
-// Zahleneingabe). Chat-native Falschantworten sind straffrei und unbegrenzt
-// wiederholbar (siehe Konzeptpapier v3, Punkt 7) -- AUSNAHME: bei einer
-// finalen Anklage (type=accusation) zaehlt nur der ALLERERSTE Versuch fuer
-// den Bonus (Konzeptpapier, "nur erster Versuch zaehlt").
+// Team beantwortet einen Chat-Knoten (Button-Wahl, Text- oder Zahleneingabe).
+// Chat-native Falschantworten sind straffrei und unbegrenzt wiederholbar (siehe
+// Konzeptpapier v3, Punkt 7) -- AUSNAHME: bei einer finalen Anklage (type=accusation)
+// zaehlt nur der ALLERERSTE Versuch fuer den Bonus (Konzeptpapier, "nur erster
+// Versuch zaehlt").
+// GEAENDERT (Phase C, Ermittler-Chat-System): Bei falscher Anklage wird jetzt
+// zusaetzlich suspects.wrong_pick_reaction_text als "reaction_text" zurueckgegeben,
+// damit ChatScreen.jsx eine passende Reaktion von Freya anzeigen kann (z.B. "Nein,
+// das war nicht Erik, er hat ein Alibi...").
 require_once __DIR__ . '/../../bootstrap.php';
 requireMethod('POST');
 $team = requireTeamAuth();
@@ -40,6 +44,7 @@ $pdo->prepare("UPDATE team_story_log SET attempts = ? WHERE id = ?")
 
 $isCorrect = false;
 $matchedOption = null;
+$accusationReactionText = null;
 
 if ($log['response_type'] === 'buttons') {
     $optStmt = $pdo->prepare("SELECT * FROM story_node_options WHERE id = ? AND node_id = ?");
@@ -48,10 +53,15 @@ if ($log['response_type'] === 'buttons') {
 
     if ($matchedOption) {
         if ($log['type'] === 'accusation') {
-            $suspectStmt = $pdo->prepare("SELECT is_guilty FROM suspects WHERE id = ?");
+            $suspectStmt = $pdo->prepare(
+                "SELECT is_guilty, wrong_pick_reaction_text FROM suspects WHERE id = ?"
+            );
             $suspectStmt->execute([(int)$matchedOption['unlocks_suspect_id']]);
             $suspect = $suspectStmt->fetch();
             $isCorrect = $suspect && (bool)$suspect['is_guilty'];
+            if ($suspect && !$isCorrect) {
+                $accusationReactionText = $suspect['wrong_pick_reaction_text'];
+            }
         } else {
             // Bestaetigungs-/Verzweigungs-Buttons: jede angebotene Option ist gueltig,
             // es gibt kein "falsch" -- die Wahl selbst ist die Konsequenz.
@@ -73,7 +83,11 @@ if ($log['response_type'] === 'buttons') {
 
 if (!$isCorrect) {
     // Chat-nativ: kein Punktabzug, keine Versuchsgrenze -- Team kann beliebig oft erneut antworten.
-    jsonResponse(200, ['success' => true, 'is_correct' => false]);
+    jsonResponse(200, [
+        'success' => true,
+        'is_correct' => false,
+        'reaction_text' => $accusationReactionText,
+    ]);
 }
 
 $pdo->prepare(

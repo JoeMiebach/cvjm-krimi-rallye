@@ -1,9 +1,12 @@
 // team-app/src/screens/ChatScreen.jsx
-// NEU (Phase B, Ermittler-Chat-System): Ersetzt CaseFileScreen.jsx. Zeigt den
-// vollstaendigen Chat-Verlauf mit Freya Lindqvist und rendert je nach
-// response_type des letzten offenen Knotens die passende Eingabe direkt in
-// der Bubble (Buttons / Text / Zahl / "Rätsel öffnen"-Verweis).
-// Siehe 05_Technische_Spezifikation_Ermittler_Chat_v1.md.
+// Ersetzt CaseFileScreen.jsx. Zeigt den vollstaendigen Chat-Verlauf mit Freya
+// Lindqvist und rendert je nach response_type des letzten offenen Knotens die
+// passende Eingabe direkt in der Bubble (Buttons / Text / Zahl / "Rätsel
+// öffnen"-Verweis). Siehe 05_Technische_Spezifikation_Ermittler_Chat_v1.md.
+// GEAENDERT (Phase C, Ermittler-Chat-System): Header-Link zu /suspects ergaenzt
+// (bewusst nicht in der Bottom-Nav, die bereits 6 Eintraege hat). Bei falscher
+// Anklage zeigt die Bubble jetzt zusaetzlich die reaction_text-Antwort aus dem
+// Backend an (z.B. "Nein, das war nicht Erik, er hat ein Alibi...").
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
@@ -20,11 +23,20 @@ function ChatBubble({ entry, onRespond, navigate }) {
   const isOpenAnswer = !entry.is_completed && entry.response_type !== 'none';
   const [textValue, setTextValue] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState(null);
+
+  useEffect(() => {
+    if (entry.is_completed) setFeedback(null);
+  }, [entry.is_completed]);
 
   async function handleButtonClick(optionId) {
     setSubmitting(true);
+    setFeedback(null);
     try {
-      await onRespond(entry.node_id, optionId);
+      const result = await onRespond(entry.node_id, optionId);
+      if (result && !result.is_correct) {
+        setFeedback(result.reaction_text || 'Das war wohl nicht die richtige Wahl...');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -34,9 +46,14 @@ function ChatBubble({ entry, onRespond, navigate }) {
     e.preventDefault();
     if (!textValue.trim()) return;
     setSubmitting(true);
+    setFeedback(null);
     try {
-      await onRespond(entry.node_id, textValue.trim());
-      setTextValue('');
+      const result = await onRespond(entry.node_id, textValue.trim());
+      if (result && !result.is_correct) {
+        setFeedback('Hmm, das passt noch nicht.');
+      } else {
+        setTextValue('');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -96,6 +113,8 @@ function ChatBubble({ entry, onRespond, navigate }) {
         </button>
       )}
 
+      {feedback && <p className="text-sm italic text-accent-700">{feedback}</p>}
+
       {entry.is_completed && entry.team_response && (
         <p className="text-xs text-ink/50">Eure Antwort: {entry.team_response}</p>
       )}
@@ -133,7 +152,8 @@ export default function ChatScreen() {
 
   async function handleRespond(nodeId, response) {
     try {
-      await api.respondToChat(nodeId, response);
+      const result = await api.respondToChat(nodeId, response);
+      return result;
     } finally {
       await loadChat();
     }
@@ -141,7 +161,12 @@ export default function ChatScreen() {
 
   return (
     <div className="flex min-h-screen flex-col gap-3 p-4 pb-24">
-      <h1 className="text-xl font-bold text-primary-700">Chat mit Freya Lindqvist</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-primary-700">Chat mit Freya Lindqvist</h1>
+        <button className="btn-secondary text-xs" onClick={() => navigate('/suspects')}>
+          🕵️ Verdächtige
+        </button>
+      </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex flex-1 flex-col gap-3">
         {chat.map((entry) => (

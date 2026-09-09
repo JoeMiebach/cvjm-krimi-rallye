@@ -2,8 +2,9 @@
 // v4: Route für die Stationskarte (StationsMapScreen) ergänzt.
 // GEAENDERT (Phase B, Ermittler-Chat-System): Route "/ermittlungsakte"
 // (CaseFileScreen) entfernt -- vollstaendig abgeloest durch "/chat"
-// (ChatScreen) und "/open-tasks" (OpenTasksScreen), siehe
-// 05_Technische_Spezifikation_Ermittler_Chat_v1.md.
+// (ChatScreen) und "/open-tasks" (OpenTasksScreen).
+// GEAENDERT (Phase C, Ermittler-Chat-System): Route "/suspects"
+// (SuspectsScreen) ergaenzt, siehe 05_Technische_Spezifikation_Ermittler_Chat_v1.md.
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { GameStatusProvider } from './context/GameStatusContext';
@@ -16,6 +17,7 @@ import LeaderboardScreen from './screens/LeaderboardScreen';
 import BroadcastsScreen from './screens/BroadcastsScreen';
 import ChatScreen from './screens/ChatScreen';
 import OpenTasksScreen from './screens/OpenTasksScreen';
+import SuspectsScreen from './screens/SuspectsScreen';
 import BroadcastBanner from './components/BroadcastBanner';
 import GeofenceStatus from './components/GeofenceStatus';
 import GameStatusBanner from './components/GameStatusBanner';
@@ -87,6 +89,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <OpenTasksScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/suspects"
+            element={
+              <ProtectedRoute>
+                <SuspectsScreen />
               </ProtectedRoute>
             }
           />

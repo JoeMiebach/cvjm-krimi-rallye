@@ -3,7 +3,7 @@
 **Arbeitstitel:** Der verschwundene Viking-Schatz
 **Produkt:** Wiederverwendbare mobile Webapp fuer Krimi-Stadtrallyes auf Jugendfreizeiten
 **Projektstatus:** Implementierung laeuft (Frontend + Backend bereits groesstenteils umgesetzt)
-**Stand:** 09.09.2026 (Ergaenzung 15:37 Uhr: Ermittler-Chat Phase B implementiert)
+**Stand:** 09.09.2026 (Ergaenzung 15:47 Uhr: Ermittler-Chat Phase C implementiert)
 **Ersetzt:** 00_Project_Brief_Entscheidungslog_v2.md (bitte archivieren, z. B. als `ARCHIV_00_..._v2.md`)
 
 ---
@@ -29,10 +29,10 @@
 9. **Startcodes in Teams-Verwaltung integriert (09.09.2026):** Der eigenstaendige
    `StartCodesScreen.jsx` entfaellt, seine Funktionen sind jetzt Teil von `TeamsScreen.jsx`
    (siehe Punkt 16).
-10. **Ermittler-Chat-System, Phase A+B (09.09.2026):** Grundlegender Umbau der Spiel-Story von
-    einer Stationsliste zu einem interaktiven Chat mit Freya Lindqvist. Backend-Kern (Phase A)
-    und Team-App-Frontend (Phase B: `ChatScreen.jsx`, `OpenTasksScreen.jsx`) implementiert.
-    `CaseFileScreen.jsx` geloescht, Bottom-Nav aktualisiert (siehe Punkt 17).
+10. **Ermittler-Chat-System, Phase A-C (09.09.2026):** Grundlegender Umbau der Spiel-Story von
+    einer Stationsliste zu einem interaktiven Chat mit Freya Lindqvist. Backend-Kern (Phase A),
+    Team-App-Chat (Phase B) und Verdaechtigen-Galerie + finale Anklage (Phase C) implementiert.
+    `CaseFileScreen.jsx` geloescht (siehe Punkt 17).
 
 ---
 
@@ -62,7 +62,7 @@
 | Karte | Leaflet + OpenStreetMap, ueber `react-leaflet` | Live-Karte (Admin) und Stationskarte (Team, ohne andere Teams) |
 | Kamera | QR-Scanner-Bibliothek (client-seitig) | QR-Freischaltung von Stationen |
 | GPS | Browser Geolocation API | Geofencing und (geplant) eigene Standortanzeige |
-| Echtzeit-Ersatz | Polling (Fetch alle 10 Sekunden) | Leaderboard, Broadcasts, Admin-/Beobachter-Live-Ansicht, Chat |
+| Echtzeit-Ersatz | Polling (Fetch alle 10 Sekunden) | Leaderboard, Broadcasts, Admin-/Beobachter-Live-Ansicht, Chat, Verdaechtige |
 | Backend | PHP 8.3, REST-API ueber einfache Endpoint-Dateien | Spiellogik, Authentifizierung |
 | Datenbank | MySQL/MariaDB (SSD-DB von STRATO) | Rallyes, Teams, Stationen, Raetsel, Fortschritt, Ermittler-Chat |
 | Betrieb | STRATO Hosting Basic, HTTPS via STRATO-SSL | Hosting, Uploads per SFTP |
@@ -81,7 +81,7 @@
 6. **Karte:** Leaflet + OpenStreetMap, konkret ueber `react-leaflet`.
 7. **Standortdaten-Cleanup:** Kombination aus altersbasierter Lazy Cleanup und externem
    Cron-Trigger als Sicherheitsnetz.
-8. **Polling-Intervall:** 10 Sekunden fuer Leaderboard, Broadcasts, Chat und
+8. **Polling-Intervall:** 10 Sekunden fuer Leaderboard, Broadcasts, Chat, Verdaechtige und
    Admin-/Beobachter-Live-Karte; 20-30 Sekunden fuer GPS-Geofence-Checks.
 9. **PHP-Version:** 8.3.
 
@@ -100,28 +100,31 @@
     `01_Konzeptpapier_Viking_Schatz_v3.md`, technische Spezifikation in
     `05_Technische_Spezifikation_Ermittler_Chat_v1.md`.
 
-    **Phase A implementiert (Backend-Kern):**
-    - Neue Tabellen `suspects`, `story_nodes`, `story_node_options`, `team_story_log`
-      (Migration: `backend/migrations/001_ermittler_chat_phase_a.sql`, MUSS noch manuell auf der
-      produktiven Datenbank ausgefuehrt werden).
-    - `stations.discovery_mode` (`lead_only`/`proximity`/`both`) und `unlock_type = 'auto'`
-      ergaenzt. Zwei zusaetzliche Felder auf `story_nodes` gegenueber der urspruenglichen
-      Spezifikation: `is_root`, `related_node_id`.
-    - Backend: `backend/api/lib/story.php` (Kaskadenlogik `deliverNode()`), Team-Endpunkte
-      (`chat.php`, `chat/respond.php`, `open-tasks.php`), Admin-Endpunkte (`story-nodes.php`,
-      `story-node-options.php`, `suspects.php`).
+    **Phase A implementiert (Backend-Kern):** Tabellen `suspects`, `story_nodes`,
+    `story_node_options`, `team_story_log` (Migration `backend/migrations/001_ermittler_chat_phase_a.sql`,
+    MUSS noch manuell auf der produktiven Datenbank ausgefuehrt werden). `stations.discovery_mode`,
+    `unlock_type = 'auto'` ergaenzt. Kaskadenlogik `backend/api/lib/story.php`, Team-Endpunkte
+    (`chat.php`, `chat/respond.php`, `open-tasks.php`), Admin-Endpunkte (`story-nodes.php`,
+    `story-node-options.php`, `suspects.php`).
 
-    **Phase B implementiert (Team-App-Frontend):**
-    - `team-app/src/screens/ChatScreen.jsx` (ersetzt `CaseFileScreen.jsx`, welches geloescht
-      wurde), `OpenTasksScreen.jsx` (neu).
-    - `client.js` um `getChat()`/`respondToChat()`/`getOpenTasks()` ergaenzt, `getClues()`
-      entfernt (nichts ruft es mehr auf).
-    - Route `/ermittlungsakte` durch `/chat` und `/open-tasks` ersetzt; `BottomNav.jsx`
-      entsprechend aktualisiert -- jetzt 6 Nav-Items, Lesbarkeit auf 375px-Viewports sollte
-      beim naechsten Praxistest geprueft werden.
-    - `puzzle_ref`-Antworttyp im Chat verweist ueber `station_id` auf die bestehende
-      `PuzzlesScreen.jsx` -- Verknuepfung ist noch nicht bis auf einzelne `puzzle_id` verfeinert,
-      bei Bedarf in Phase D nachschaerfen.
+    **Phase B implementiert (Team-App-Chat):** `ChatScreen.jsx` (ersetzt `CaseFileScreen.jsx`,
+    geloescht), `OpenTasksScreen.jsx`. `client.js` um `getChat()`/`respondToChat()`/`getOpenTasks()`
+    ergaenzt. Route `/ermittlungsakte` durch `/chat` und `/open-tasks` ersetzt, `BottomNav.jsx`
+    aktualisiert (6 Nav-Items).
+
+    **Phase C implementiert (Verdaechtige + finale Anklage):**
+    - Neuer Team-Endpunkt `GET /team/suspects.php` -- liefert nur die dem Team bereits bekannten
+      Verdaechtigen (ueber `reveals_suspect_id` bzw. gewaehlte `unlocks_suspect_id`-Optionen),
+      OHNE `is_guilty`/`wrong_pick_reaction_text` (Spoiler-Schutz).
+    - `POST /team/chat/respond.php` erweitert: bei falscher Anklage wird jetzt zusaetzlich
+      `reaction_text` (aus `suspects.wrong_pick_reaction_text`) zurueckgegeben.
+    - Neuer Screen `SuspectsScreen.jsx` (Galerie), Route `/suspects`. **Bewusst NICHT** in die
+      Bottom-Nav aufgenommen (waere 7. Eintrag, zu eng auf 375px) -- stattdessen als Button im
+      `ChatScreen`-Header verlinkt.
+    - `ChatScreen.jsx` zeigt bei falscher Text-/Zahl- oder Anklage-Antwort jetzt eine kurze
+      Feedback-Zeile in der Bubble an.
+    - Kein neues DB-Schema noetig -- `suspects`, `reveals_suspect_id`, `unlocks_suspect_id` kamen
+      bereits mit Phase A.
 
     **Noch NICHT umgesetzt:** Admin-Content-Editor-UI (Phase D), Foto-Einreichung (Phase E),
     Avatare/Sinnesreize/Offline-Warteschlange (Phase F). Das alte `story_clue`-System
@@ -139,8 +142,10 @@
 6. Ermittler-Chat Phase D-F (siehe Punkt 17) -- Admin-Editor, Foto-Einreichung,
    Avatare/Sinnesreize/Offline-Warteschlange.
 7. Migration: Wann wird `team_story_clues`/`GET /team/clues.php` final entfernt (nach
-   erfolgreichem Praxistest von Phase A+B)?
-8. Lesbarkeit der 6-teiligen Bottom-Nav auf kleinen Viewports pruefen (siehe Punkt 17, Phase B).
+   erfolgreichem Praxistest von Phase A-C)?
+8. Lesbarkeit der 6-teiligen Bottom-Nav auf kleinen Viewports pruefen.
+9. Exaktes Bildformat/Speicherort fuer Verdaechtigen-Portraits (`portrait_icon`) noch offen --
+   an bestehende `media_url`-Konvention anlehnen (siehe 05_Technische_Spezifikation, Abschnitt 6).
 
 ## Datenschutz-Hinweis (unveraendert aus v1/v2)
 

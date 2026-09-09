@@ -1,7 +1,7 @@
 # API-Spezifikation: Viking-Schatz Rallye (PHP / Hosting Basic) - Version 3
 
 **Ersetzt:** 04_API_Spezifikation_PHP.md (v2.0, bitte archivieren)
-**Stand:** 09.09.2026, 15:20 Uhr (Ermittler-Chat-Endpunkte Phase A ergaenzt)
+**Stand:** 09.09.2026, 15:47 Uhr (Ermittler-Chat-Endpunkte Phase A-C ergaenzt)
 
 ## Basis-URL
 
@@ -32,7 +32,6 @@ https://deine-domain.de/api
 | GET | /team/progress.php | Eigener Fortschritt |
 | GET | /leaderboard.php?rallye_id= | Rangliste |
 | GET | /team/broadcasts.php?since= | Neue Broadcasts |
-| GET | /team/clues.php | Ermittlungsakte (ALT -- wird mit Abschluss der Ermittler-Chat-Migration entfernt, siehe 05_Technische_Spezifikation_Ermittler_Chat_v1.md) |
 
 ## Admin-Endpunkte
 
@@ -41,27 +40,29 @@ Grundlegende Endpunkte (`/admin/dashboard.php`, `/admin/rallyes.php`, `/admin/te
 `/admin/positions.php`, Spielsteuerung unter `/admin/game/*`, `/admin/start-codes.php`)
 unveraendert -- siehe v2/v3 fuer vollstaendige Tabellen.
 
-## Ermittler-Chat-Endpunkte (NEU, Phase A -- siehe 05_Technische_Spezifikation_Ermittler_Chat_v1.md)
+## Ermittler-Chat-Endpunkte (siehe 05_Technische_Spezifikation_Ermittler_Chat_v1.md)
 
 ### Team-Endpunkte
 
-| Methode | Endpunkt | Beschreibung |
-|---|---|---|
-| GET | /team/chat.php | Vollstaendiger Chat-Verlauf inkl. offener Antwortoptionen |
-| POST | /team/chat/respond.php | Antwort auf einen Knoten (Button-Wahl/Text/Zahl) einreichen |
-| GET | /team/open-tasks.php | Alle unbeantworteten Chat-Aufgaben des Teams |
+| Methode | Endpunkt | Beschreibung | Phase |
+|---|---|---|---|
+| GET | /team/chat.php | Vollstaendiger Chat-Verlauf inkl. offener Antwortoptionen | A |
+| POST | /team/chat/respond.php | Antwort auf einen Knoten (Button-Wahl/Text/Zahl) einreichen | A/C |
+| GET | /team/open-tasks.php | Alle unbeantworteten Chat-Aufgaben des Teams | A |
+| GET | /team/suspects.php | Bisher entdeckte Verdaechtige des Teams (ohne is_guilty) | C |
 
 ### Admin-Endpunkte
 
-| Methode | Endpunkt | Beschreibung |
-|---|---|---|
-| GET/POST/PUT/DELETE | /admin/story-nodes.php | CRUD fuer Chat-Knoten |
-| GET/POST/PUT/DELETE | /admin/story-node-options.php | CRUD fuer Antwortoptionen |
-| GET/POST/PUT/DELETE | /admin/suspects.php | CRUD fuer Verdaechtige |
+| Methode | Endpunkt | Beschreibung | Phase |
+|---|---|---|---|
+| GET/POST/PUT/DELETE | /admin/story-nodes.php | CRUD fuer Chat-Knoten | A |
+| GET/POST/PUT/DELETE | /admin/story-node-options.php | CRUD fuer Antwortoptionen | A |
+| GET/POST/PUT/DELETE | /admin/suspects.php | CRUD fuer Verdaechtige | A |
 
 Implementiert in `backend/api/team/chat.php`, `backend/api/team/chat/respond.php`,
-`backend/api/team/open-tasks.php`, `backend/api/admin/story-nodes.php`,
-`backend/api/admin/story-node-options.php`, `backend/api/admin/suspects.php`.
+`backend/api/team/open-tasks.php`, `backend/api/team/suspects.php`,
+`backend/api/admin/story-nodes.php`, `backend/api/admin/story-node-options.php`,
+`backend/api/admin/suspects.php`.
 
 ## Beobachter-Endpunkte / System-Endpunkt / Fehlercodes
 
