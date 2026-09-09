@@ -1,7 +1,7 @@
 # Technische Spezifikation: Viking-Schatz Rallye (PHP / MySQL / Hosting Basic) - Version 3
 
 **Ersetzt:** 02_Technische_Spezifikation_PHP.md (v2.0, bitte archivieren)
-**Stand:** 09.09.2026, 13:14 Uhr (SPA-Rewrite-Fix fuer Reload/Direktaufruf ergaenzt)
+**Stand:** 09.09.2026, 13:20 Uhr (Deploy-Workflow-Fix: .htaccess-Upload korrigiert)
 
 ## System-Architektur (aktualisiert)
 
@@ -121,17 +121,26 @@ PDO Prepared Statements, bcrypt-Passworthashing, HMAC-signierte Tokens (unveraen
 Beide Frontends (`team-app`, `admin-app`) werden separat gebaut (`npm run build`) und per
 SFTP in getrennte Verzeichnisse hochgeladen; Backend unveraendert nach `/api`.
 
-**NEU -- SPA-Rewrite-Pflicht (09.09.2026):** Beide Apps nutzen `react-router-dom` mit
-`BrowserRouter` (`basename="/admin"` bzw. `"/team"`) und erzeugen damit rein clientseitige
-Routen wie `/admin/dashboard`. Diese Pfade existieren nicht als physische Dateien auf dem
-Server -- nur `index.html` liegt dort. Ohne serverseitige Rewrite-Regel liefert Apache bei
-einem Reload (F5), einem Lesezeichen oder einem direkten Aufruf einer solchen Unterroute
-einen echten 404 (Apache-Standardfehlerseite, ca. 236 Byte), obwohl die App beim
-Klick-Navigieren einwandfrei funktioniert. Fix: `public/.htaccess` in beiden Vite-Projekten
+**SPA-Rewrite-Pflicht:** Beide Apps nutzen `react-router-dom` mit `BrowserRouter`
+(`basename="/admin"` bzw. `"/team"`) und erzeugen damit rein clientseitige Routen wie
+`/admin/dashboard`. Diese Pfade existieren nicht als physische Dateien auf dem Server -- nur
+`index.html` liegt dort. Ohne serverseitige Rewrite-Regel liefert Apache bei einem Reload (F5),
+einem Lesezeichen oder einem direkten Aufruf einer solchen Unterroute einen echten 404
+(Apache-Standardfehlerseite, ca. 236 Byte), obwohl die App beim Klick-Navigieren einwandfrei
+funktioniert. Fix: `public/.htaccess` in beiden Vite-Projekten
 (`frontend/admin-app/public/.htaccess`, `frontend/team-app/public/.htaccess`), die alle
 nicht-existierenden Pfade auf das jeweilige `index.html` umleitet. Vite kopiert den Inhalt von
-`public/` unveraendert in den Build (`dist/`), sodass die `.htaccess` automatisch mit jedem
-SFTP-Deploy in den richtigen Docroot-Unterordner gelangt -- kein Workflow-Update noetig.
+`public/` unveraendert in den Build (`dist/`), sodass die `.htaccess` bereits im Build-Ordner
+korrekt vorliegt.
+
+**NACHTRAG (09.09.2026, 13:20 Uhr) -- Workflow-Fix noetig:** Die verwendete Deploy-Action
+(`wlixcc/SFTP-Deploy-Action@v1.2.4`) matched bei einem Wildcard-Glob wie `dist/*` KEINE
+Dotfiles -- die Action bietet dafuer keine Konfigurationsoption. Die `.htaccess` lag dadurch
+zwar korrekt in `dist/.htaccess`, wurde vom Haupt-Upload-Schritt aber schlicht uebersprungen
+(Symptom: 404 bei Reload/Direktaufruf blieb trotz vorhandener `public/.htaccess` bestehen).
+Fix in `.github/workflows/deploy-frontend.yml`: pro App ein zusaetzlicher
+SFTP-Deploy-Action-Schritt, der `local_path` direkt auf `dist/.htaccess` zeigt
+(Einzeldatei-Modus statt Wildcard-Glob) und dieselbe Datei explizit nachliefert.
 
 ---
 
