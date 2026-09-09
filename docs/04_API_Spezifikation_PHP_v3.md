@@ -1,7 +1,7 @@
 # API-Spezifikation: Viking-Schatz Rallye (PHP / Hosting Basic) - Version 3
 
 **Ersetzt:** 04_API_Spezifikation_PHP.md (v2.0, bitte archivieren)
-**Stand:** 09.09.2026
+**Stand:** 09.09.2026, 12:37 Uhr (story_clue-Verhalten final geklaert und Code-abgeglichen)
 
 ## Basis-URL
 
@@ -28,30 +28,72 @@ https://deine-domain.de/api
 | POST | /team/check-geofence.php | GPS-Position senden, GPS-Stationen pruefen |
 | GET | /puzzles.php?station_id= | Raetsel einer Station |
 | POST | /puzzles/hint.php | Hinweis anfordern |
-| POST | /puzzles/submit.php | Antwort einreichen (siehe Korrektur unten) |
+| POST | /puzzles/submit.php | Antwort einreichen (siehe unten, story_clue final) |
 | GET | /team/progress.php | Eigener Fortschritt |
 | GET | /leaderboard.php?rallye_id= | Rangliste |
 | GET | /team/broadcasts.php?since= | Neue Broadcasts |
-| GET | /team/clues.php | NEU (v3): Ermittlungsakte |
+| GET | /team/clues.php | Ermittlungsakte (persistent, siehe unten) |
 
-### GET /team/clues.php (NEU in v3)
+### POST /puzzles/submit.php (FINAL, 09.09.2026)
+
+Bei korrekter Antwort liefert der Endpoint den Story-Hinweis (`puzzles.story_clue_text`)
+**sofort** im Response mit -- Grundlage fuer ein Popup ("Neues Beweisstueck entdeckt!") in
+`PuzzlesScreen.jsx`. Zusaetzlich schreibt der Endpoint denselben Hinweis dauerhaft in
+`team_story_clues`, sodass er unabhaengig vom Popup jederzeit ueber `GET /team/clues.php`
+abrufbar bleibt. Ist bei einem Raetsel `story_clue_text` NULL (z. B. bei Bonus-Raetseln ohne
+eigenen Story-Beitrag), wird `story_clue` als `null` zurueckgegeben und **kein** Eintrag in
+`team_story_clues` erzeugt.
+
+Request:
 
 ```json
-{ "success": true, "clues": [ { "station_id": 1, "station_title": "Der Viking-Hafen", "story_clue_text": "...", "unlocked_at": "2026-09-09T10:15:00Z" } ] }
+{ "puzzle_id": 3, "answer": "Sleipnir", "hint_used": false }
 ```
 
-Feldschema aus CaseFileScreen.jsx erschlossen -- gegen backend/api/team/clues.php verifizieren.
-
-### POST /puzzles/submit.php (KORRIGIERT/ERGAENZT in v3)
-
-Offene Diskrepanz: PuzzlesScreen.jsx erwartet zusaetzlich ein Feld `story_clue`:
+Response (korrekte Antwort, Raetsel mit Story-Hinweis):
 
 ```json
 { "success": true, "is_correct": true, "points_earned": 10, "message": "Richtig! +10 Punkte", "story_clue": "Text..." }
 ```
 
-Aktueller Code liefert `story_clue` NICHT zurueck -- vor Produktivbetrieb klaeren (ggf. Spalte
-`puzzles.story_clue_text` ergaenzen, siehe DB-Schema v2.2).
+Response (korrekte Antwort, Raetsel ohne Story-Hinweis, z. B. Bonus-Raetsel):
+
+```json
+{ "success": true, "is_correct": true, "points_earned": 10, "message": "Richtig! +10 Punkte", "story_clue": null }
+```
+
+Response (falsche Antwort, Versuche verbleiben):
+
+```json
+{ "success": true, "is_correct": false, "attempts_remaining": 2, "message": "Falsch. Noch 2 Versuche." }
+```
+
+Implementiert in `backend/api/puzzles/submit.php` (korrigiert 09.09.2026 -- vorherige Version
+nutzte faelschlich `stations.story_text` statt `puzzles.story_clue_text` und schrieb nicht in
+`team_story_clues`).
+
+### GET /team/clues.php (verifiziert 09.09.2026)
+
+Liefert alle bisher freigeschalteten Story-Hinweise des Teams aus `team_story_clues`, sortiert
+nach `unlocked_at` aufsteigend. Bleibt dauerhaft abrufbar, unabhaengig vom Submit-Popup.
+
+```json
+{
+  "success": true,
+  "clues": [
+    {
+      "story_clue_text": "...",
+      "unlocked_at": "2026-09-09T10:15:00Z",
+      "puzzle_question": "Wie heisst der Viking-Gott des Donners?",
+      "station_id": 1,
+      "station_title": "Der Viking-Hafen"
+    }
+  ]
+}
+```
+
+Implementiert in `backend/api/team/clues.php` -- Feldschema gegen echten Code verifiziert,
+keine Aenderung noetig.
 
 ## Admin-Endpunkte / Beobachter-Endpunkte / System-Endpunkt / Fehlercodes
 
