@@ -2,6 +2,7 @@
 #
 # Baut team-app und admin-app bei jedem Push auf main mit Aenderungen unter
 # frontend/** und laedt die jeweiligen dist/-Ordner per SFTP auf STRATO hoch.
+# Kann zusaetzlich manuell im Actions-Tab ueber "Run workflow" gestartet werden.
 #
 # Voraussetzung: Gleiche Repository-Secrets wie beim Backend-Deploy
 # (STRATO_SFTP_HOST, STRATO_SFTP_USER, STRATO_SFTP_PASSWORD).
@@ -18,6 +19,7 @@ on:
     branches: [main]
     paths:
       - "frontend/**"
+  workflow_dispatch: {}
 
 jobs:
   deploy-team-app:
