@@ -1,0 +1,87 @@
+# .github/workflows/deploy-frontend.yml
+#
+# Baut team-app und admin-app bei jedem Push auf main mit Aenderungen unter
+# frontend/** und laedt die jeweiligen dist/-Ordner per SFTP auf STRATO hoch.
+#
+# Voraussetzung: Gleiche Repository-Secrets wie beim Backend-Deploy
+# (STRATO_SFTP_HOST, STRATO_SFTP_USER, STRATO_SFTP_PASSWORD).
+#
+# WICHTIG: --base=/stadtrallye/team/ bzw. /stadtrallye/admin/ sorgt dafuer,
+# dass Vite die Asset-Pfade (JS/CSS) korrekt fuer den Unterordner statt fuer
+# das Domain-Root generiert. Falls sich der Zielordner auf dem Server je
+# aendert, muss dieser Wert HIER angepasst werden (nicht nur remote_path).
+
+name: Deploy Frontend via SFTP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+
+jobs:
+  deploy-team-app:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Abhaengigkeiten installieren
+        working-directory: frontend/team-app
+        run: npm ci
+
+      - name: Produktions-Build
+        working-directory: frontend/team-app
+        run: npm run build -- --base=/stadtrallye/team/
+        env:
+          VITE_API_BASE_URL: https://joe-miebach.de/api
+
+      - name: Team-App per SFTP hochladen
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          username: ${{ secrets.STRATO_SFTP_USER }}
+          server: ${{ secrets.STRATO_SFTP_HOST }}
+          password: ${{ secrets.STRATO_SFTP_PASSWORD }}
+          port: 22
+          local_path: "./frontend/team-app/dist/*"
+          remote_path: "/stadtrallye/team"
+          sftp_only: true
+
+  deploy-admin-app:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Abhaengigkeiten installieren
+        working-directory: frontend/admin-app
+        run: npm ci
+
+      - name: Produktions-Build
+        working-directory: frontend/admin-app
+        run: npm run build -- --base=/stadtrallye/admin/
+        env:
+          VITE_API_BASE_URL: https://joe-miebach.de/api
+          # Platzhalter bis zur Rallye-Auswahl im Admin-UI (siehe .env.example-Kommentar).
+          VITE_DEFAULT_RALLYE_ID: "1"
+
+      - name: Admin-App per SFTP hochladen
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          username: ${{ secrets.STRATO_SFTP_USER }}
+          server: ${{ secrets.STRATO_SFTP_HOST }}
+          password: ${{ secrets.STRATO_SFTP_PASSWORD }}
+          port: 22
+          local_path: "./frontend/admin-app/dist/*"
+          remote_path: "/stadtrallye/admin"
+          sftp_only: true
