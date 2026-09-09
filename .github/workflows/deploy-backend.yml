@@ -1,0 +1,39 @@
+# .github/workflows/deploy-backend.yml
+#
+# Laedt bei jedem Push auf main, der Dateien unter backend/ aendert,
+# automatisch den Inhalt von backend/api/ per SFTP auf den STRATO-Server hoch.
+#
+# Voraussetzung: Repository-Secrets STRATO_SFTP_HOST, STRATO_SFTP_USER,
+# STRATO_SFTP_PASSWORD sind unter Settings -> Secrets and variables -> Actions
+# angelegt (siehe Anleitung im Chat).
+#
+# WICHTIG: config.php liegt NICHT im Repo (.gitignore) und wird daher auch
+# NICHT ueberschrieben -- die Datei mit echten Zugangsdaten bleibt unberuehrt
+# auf dem Server stehen. Falls ihr sie einmal aendern muesst, geht das weiterhin
+# nur manuell per SFTP-Client.
+
+name: Deploy Backend via SFTP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: Backend per SFTP hochladen
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          username: ${{ secrets.STRATO_SFTP_USER }}
+          server: ${{ secrets.STRATO_SFTP_HOST }}
+          password: ${{ secrets.STRATO_SFTP_PASSWORD }}
+          port: 22
+          local_path: "./backend/api/*"
+          remote_path: "/api"
+          sftp_only: true
