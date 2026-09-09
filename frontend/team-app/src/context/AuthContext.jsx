@@ -1,4 +1,3 @@
-// team-app/src/context/AuthContext.jsx
 import { createContext, useContext, useEffect, useReducer, useCallback } from 'react';
 import { api, setAuthToken, setUnauthorizedHandler, ApiError } from '../api/client';
 
@@ -117,10 +116,3 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth muss innerhalb von <AuthProvider> verwendet werden.');
   return ctx;
 }
-
-// HINWEIS FÜR DAS BACKEND (04_API_Spezifikation_PHP.md):
-// Die Team-App benötigt rallye_id sowohl aus register.php (bereits im Beispiel
-// enthalten: team.rallye_id) als auch aus login.php. Das Doku-Beispiel für
-// login.php zeigt nur { id, name } ohne rallye_id -- bitte prüfen/bestätigen,
-// dass login.php ebenfalls team.rallye_id zurückliefert, da sonst nach einem
-// Browser-Neustart (Auto-Re-Login) die Rallye-ID fehlt.
