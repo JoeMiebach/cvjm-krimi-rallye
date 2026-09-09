@@ -3,7 +3,7 @@
 **Arbeitstitel:** Der verschwundene Viking-Schatz
 **Produkt:** Wiederverwendbare mobile Webapp fuer Krimi-Stadtrallyes auf Jugendfreizeiten
 **Projektstatus:** Implementierung laeuft (Frontend + Backend bereits groesstenteils umgesetzt)
-**Stand:** 09.09.2026 (Ergaenzung 13:31 Uhr: Startcodes in TeamsScreen integriert, StartCodesScreen entfernt)
+**Stand:** 09.09.2026 (Ergaenzung 15:20 Uhr: Ermittler-Chat Phase A implementiert)
 **Ersetzt:** 00_Project_Brief_Entscheidungslog_v2.md (bitte archivieren, z. B. als `ARCHIV_00_..._v2.md`)
 
 ---
@@ -33,6 +33,10 @@
 9. **Startcodes in Teams-Verwaltung integriert (09.09.2026):** Der eigenstaendige
    `StartCodesScreen.jsx` entfaellt, seine Funktionen sind jetzt Teil von `TeamsScreen.jsx`
    (siehe Punkt 16).
+10. **Ermittler-Chat-System, Phase A (09.09.2026):** Grundlegender Umbau der Spiel-Story von
+    einer Stationsliste zu einem interaktiven Chat mit Freya Lindqvist begonnen (siehe
+    01_Konzeptpapier_Viking_Schatz_v3.md und 05_Technische_Spezifikation_Ermittler_Chat_v1.md).
+    Backend-Kern implementiert, Frontend folgt in Phase B.
 
 ---
 
@@ -91,48 +95,34 @@
 ## Neu entschiedene/praezisierte Punkte (v3)
 
 10. **Frontend-Aufteilung:** Zwei getrennte Vite-Anwendungen (`team-app/`, `admin-app/`) statt
-    eines einzelnen Frontends. Begruendung: unterschiedliche Nutzergruppen, unterschiedliche
-    Berechtigungsmodelle, getrennte Deploy-Artefakte reduzieren Bundle-Groesse pro Zielgruppe.
+    eines einzelnen Frontends.
 11. **Datenschutz bei Kartenfunktionen:** Kein Team sieht jemals die Live-Position eines anderen
-    Teams. Die Stationskarte (`StationsMapScreen.jsx`) zeigt ausschliesslich Stationspositionen.
-    Eine geplante Anzeige der eigenen Live-Position zeigt ausschliesslich die eigene Position
-    plus Stationen, niemals andere Teams. Grund: Wettbewerbsfairness und Minderjaehrigenschutz.
-12. **"Ermittlungsakte" als Story-Mechanik:** Zusaetzlich zum reinen Punktesystem sammelt jedes
-    Team ueber `CaseFileScreen.jsx` freigeschaltete Story-Hinweise ("Beweisstuecke") an einem
-    zentralen Ort. Macht die Story praesenter als nur einzelne Stationstexte.
-13. **Quellcode-Governance:** GitHub statt reiner Datei-Uploads. `.gitignore` schliesst
-    `config.php`, `config.local.php`, `node_modules/`, `dist/`, `logs/` konsequent aus. Bei
-    versehentlichem Secret-Commit: vollstaendiger History-Rewrite PLUS Rotation aller
-    betroffenen Zugangsdaten ist Pflicht, nicht optional.
-14. **story_clue-Verhalten (`POST /puzzles/submit.php`):** Bei korrekter Antwort wird
-    `puzzles.story_clue_text` (sofern gesetzt) **sofort** in der Response als `story_clue`
-    zurueckgegeben (Popup "Neues Beweisstueck entdeckt!" in `PuzzlesScreen.jsx`) **und
-    zusaetzlich dauerhaft** in `team_story_clues` gespeichert. Die Ermittlungsakte
-    (`GET /team/clues.php`) liest ausschliesslich aus `team_story_clues` und zeigt den Hinweis
-    damit dauerhaft an -- auch nach Reload, Re-Login oder spaeterem Besuch der Akte. Bonus-Raetsel
-    ohne eigenen Story-Beitrag lassen `story_clue_text` bewusst `NULL`; dann wird bei ihrem Loesen
-    kein Eintrag in `team_story_clues` erzeugt. Datenbankseitig war dies bereits umgesetzt
-    (`puzzles.story_clue_text`, `team_story_clues`, siehe Schema v3); `submit.php` wurde am
-    09.09.2026 entsprechend korrigiert (vorherige Version nutzte faelschlich `stations.story_text`
-    und schrieb nicht in `team_story_clues`). `GET /team/clues.php` war bereits korrekt implementiert.
-15. **Rallye-Auswahl im Admin-UI:** Die feste `VITE_DEFAULT_RALLYE_ID=1` wurde durch einen
-    `RallyeContext` (`frontend/admin-app/src/context/RallyeContext.jsx`) ersetzt, der alle Rallyes
-    ueber `GET /admin/rallyes.php` laedt und die Auswahl in `localStorage` persistiert. Ein
-    Dropdown im Header (`App.jsx`) erlaubt Admin/Beobachter den Wechsel zwischen Rallyes; alle
-    acht betroffenen Screens lesen `rallye_id` jetzt aus `useRallye()` statt aus der Env-Variable.
-    Zusaetzlich wurde ein Deploy-Workflow-Bug behoben: `wlixcc/SFTP-Deploy-Action` matched bei
-    Wildcard-Globs (`dist/*`) keine Dotfiles, wodurch die fuer SPA-Routing noetige
-    `public/.htaccess` nie hochgeladen wurde (404 bei Reload/Direktaufruf von Unterrouten). Fix:
-    zusaetzlicher Einzeldatei-Upload-Schritt pro App in `deploy-frontend.yml`.
-16. **Startcodes in Teams-Verwaltung integriert:** Der eigenstaendige `StartCodesScreen.jsx`
-    (Route `/start-codes`) wurde geloescht. `TeamsScreen.jsx` zeigt jetzt zusaetzlich den
-    Startcode pro Team (aus `teams.start_code`, bereits Teil des bestehenden
-    `GET /admin/teams.php`-Response), eine Liste unbenutzter Startcodes sowie das
-    Generieren-Formular. Neuer Endpoint `GET /admin/start-codes.php?rallye_id=` listet alle
-    Startcodes einer Rallye (benutzt inkl. Teamname, unbenutzt). `POST
-    /admin/start-codes/generate.php` (Erzeugen neuer Codes) bleibt unveraendert bestehen.
-    Begruendung: Startcodes sind inhaltlich untrennbar mit Teams verknuepft, ein eigener
-    Navigationspunkt dafuer war ein unnoetiger Umweg fuer den Spielleiter.
+    Teams.
+12. **"Ermittlungsakte" als Story-Mechanik (ABGELOEST durch Ermittler-Chat, siehe Punkt 17):**
+    urspruenglich ueber `CaseFileScreen.jsx`, wird durch das Chat-System ersetzt.
+13. **Quellcode-Governance:** GitHub statt reiner Datei-Uploads.
+14. **story_clue-Verhalten (ALT, wird mit Ermittler-Chat-Migration abgeloest):** siehe Punkt 17.
+15. **Rallye-Auswahl im Admin-UI:** `RallyeContext` ersetzt `VITE_DEFAULT_RALLYE_ID`.
+16. **Startcodes in Teams-Verwaltung integriert:** `StartCodesScreen.jsx` entfernt, Funktionen in
+    `TeamsScreen.jsx`.
+17. **Ermittler-Chat-System (NEU, 09.09.2026):** Vollstaendiges Konzept in
+    `01_Konzeptpapier_Viking_Schatz_v3.md`, technische Spezifikation in
+    `05_Technische_Spezifikation_Ermittler_Chat_v1.md`. **Phase A implementiert:**
+    - Neue Tabellen `suspects`, `story_nodes`, `story_node_options`, `team_story_log`
+      (Migration: `backend/migrations/001_ermittler_chat_phase_a.sql`, MUSS noch manuell auf der
+      produktiven Datenbank ausgefuehrt werden).
+    - `stations.discovery_mode` (`lead_only`/`proximity`/`both`) und `unlock_type = 'auto'`
+      ergaenzt.
+    - Gegenueber der urspruenglichen Spezifikation zwei zusaetzliche Felder auf `story_nodes`
+      noetig: `is_root` (Einstiegsknoten fuer neue Teams) und `related_node_id` (verknuepft
+      proaktive Fehlversuch-Hinweise mit dem zugehoerigen offenen Knoten).
+    - Backend: `backend/api/lib/story.php` (Kaskadenlogik `deliverNode()`), Team-Endpunkte
+      (`chat.php`, `chat/respond.php`, `open-tasks.php`), Admin-Endpunkte (`story-nodes.php`,
+      `story-node-options.php`, `suspects.php` -- Letzteres aus Phase C vorgezogen).
+    - Noch NICHT umgesetzt: Team-App-Frontend (Phase B), Admin-Content-Editor-UI (Phase D),
+      Foto-Einreichung (Phase E), Avatare/Sinnesreize/Offline-Warteschlange (Phase F). Das alte
+      `story_clue`/Ermittlungsakte-System laeuft bis zum Abschluss der Migration unveraendert
+      weiter.
 
 ## Weiterhin offen
 
@@ -141,8 +131,11 @@
 3. Wie viele Raetsel pro Station? (Empfehlung weiterhin: 1 Haupt-Raetsel, optional 1 Bonus-Raetsel)
 4. Konkrete Domain fuer das Hosting-Paket (aktuell Platzhalter, siehe technische Spezifikation)
 5. Die eigene Live-Positionsanzeige des Teams (`watchPosition`-basiert) muss noch auf
-   die echte Codebasis angepasst werden (`react-leaflet` statt reinem Leaflet,
-   `src/screens/*Screen.jsx`-Konvention statt `src/pages/`).
+   die echte Codebasis angepasst werden.
+6. Ermittler-Chat Phase B-F (siehe Punkt 17) -- Frontend, Admin-Editor, Foto-Einreichung,
+   Avatare/Sinnesreize/Offline-Warteschlange.
+7. Migration: Wann wird `team_story_clues`/`GET /team/clues.php`/`CaseFileScreen.jsx` final
+   entfernt (nach erfolgreichem Test von Phase A+B)?
 
 ## Datenschutz-Hinweis (unveraendert aus v1/v2)
 

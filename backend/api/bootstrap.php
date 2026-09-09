@@ -11,13 +11,16 @@
 // damit Teams während Pause/vor Spielstart/nach Spielende keine Rätsel
 // lösen, Hinweise anfordern oder Stationen freischalten können.
 //
-// TEST (09.09.2026): Kommentarzeile zum Auslösen des SFTP-Deploy-Workflows
-// (.github/workflows/deploy-backend.yml). Keine funktionale Änderung.
+// NEU (Phase A, Ermittler-Chat-System): lib/story.php eingebunden -- stellt
+// deliverNode(), deliverRootNodesIfNeeded() und evaluateProactiveNodes() bereit.
+// Siehe docs/05_Technische_Spezifikation_Ermittler_Chat_v1.md.
+
 
 
 declare(strict_types=1);
 error_reporting(E_ALL);
 ini_set('display_errors', '0');
+
 
 
 // Erlaubte Origins: Team-App und Admin-App laufen ggf. unter verschiedenen
@@ -28,6 +31,7 @@ $allowedOrigins = [
     'http://localhost:5174',
     'http://localhost:5173',
 ];
+
 
 
 $requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
@@ -43,10 +47,12 @@ header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Credentials: true');
 
 
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
     exit;
 }
+
 
 
 require_once __DIR__ . '/lib/response.php';
@@ -54,13 +60,16 @@ require_once __DIR__ . '/lib/db.php';
 require_once __DIR__ . '/lib/cleanup.php';
 require_once __DIR__ . '/lib/auth.php';
 require_once __DIR__ . '/lib/geofence.php';
-require_once __DIR__ . '/lib/game.php'; // NEU: requireGameRunning()
+require_once __DIR__ . '/lib/game.php'; // requireGameRunning()
+require_once __DIR__ . '/lib/story.php'; // NEU: Ermittler-Chat-Kaskadenlogik
+
 
 
 set_exception_handler(function (Throwable $e) {
     logError($e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
     jsonError(500, 'Interner Serverfehler');
 });
+
 
 
 $pdo = getDb();

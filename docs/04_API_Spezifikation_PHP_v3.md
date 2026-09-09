@@ -1,7 +1,7 @@
 # API-Spezifikation: Viking-Schatz Rallye (PHP / Hosting Basic) - Version 3
 
 **Ersetzt:** 04_API_Spezifikation_PHP.md (v2.0, bitte archivieren)
-**Stand:** 09.09.2026, 13:31 Uhr (Startcodes-Endpoint ergaenzt)
+**Stand:** 09.09.2026, 15:20 Uhr (Ermittler-Chat-Endpunkte Phase A ergaenzt)
 
 ## Basis-URL
 
@@ -23,107 +23,49 @@ https://deine-domain.de/api
 | Methode | Endpunkt | Beschreibung |
 |---|---|---|
 | GET | /team/me.php | Eigene Team-Daten |
-| GET | /stations.php?rallye_id= | Stationen inkl. Freischaltstatus (auch fuer StationsMapScreen.jsx) |
+| GET | /stations.php?rallye_id= | Stationen inkl. Freischaltstatus |
 | POST | /stations/unlock.php | QR-Freischaltung |
 | POST | /team/check-geofence.php | GPS-Position senden, GPS-Stationen pruefen |
 | GET | /puzzles.php?station_id= | Raetsel einer Station |
 | POST | /puzzles/hint.php | Hinweis anfordern |
-| POST | /puzzles/submit.php | Antwort einreichen (siehe unten, story_clue final) |
+| POST | /puzzles/submit.php | Antwort einreichen |
 | GET | /team/progress.php | Eigener Fortschritt |
 | GET | /leaderboard.php?rallye_id= | Rangliste |
 | GET | /team/broadcasts.php?since= | Neue Broadcasts |
-| GET | /team/clues.php | Ermittlungsakte (persistent, siehe unten) |
-
-### POST /puzzles/submit.php (FINAL, 09.09.2026)
-
-Bei korrekter Antwort liefert der Endpoint den Story-Hinweis (`puzzles.story_clue_text`)
-**sofort** im Response mit -- Grundlage fuer ein Popup ("Neues Beweisstueck entdeckt!") in
-`PuzzlesScreen.jsx`. Zusaetzlich schreibt der Endpoint denselben Hinweis dauerhaft in
-`team_story_clues`, sodass er unabhaengig vom Popup jederzeit ueber `GET /team/clues.php`
-abrufbar bleibt. Ist bei einem Raetsel `story_clue_text` NULL (z. B. bei Bonus-Raetseln ohne
-eigenen Story-Beitrag), wird `story_clue` als `null` zurueckgegeben und **kein** Eintrag in
-`team_story_clues` erzeugt.
-
-Request:
-
-```json
-{ "puzzle_id": 3, "answer": "Sleipnir", "hint_used": false }
-```
-
-Response (korrekte Antwort, Raetsel mit Story-Hinweis):
-
-```json
-{ "success": true, "is_correct": true, "points_earned": 10, "message": "Richtig! +10 Punkte", "story_clue": "Text..." }
-```
-
-Response (korrekte Antwort, Raetsel ohne Story-Hinweis, z. B. Bonus-Raetsel):
-
-```json
-{ "success": true, "is_correct": true, "points_earned": 10, "message": "Richtig! +10 Punkte", "story_clue": null }
-```
-
-Response (falsche Antwort, Versuche verbleiben):
-
-```json
-{ "success": true, "is_correct": false, "attempts_remaining": 2, "message": "Falsch. Noch 2 Versuche." }
-```
-
-Implementiert in `backend/api/puzzles/submit.php`.
-
-### GET /team/clues.php (verifiziert 09.09.2026)
-
-Liefert alle bisher freigeschalteten Story-Hinweise des Teams aus `team_story_clues`, sortiert
-nach `unlocked_at` aufsteigend. Bleibt dauerhaft abrufbar, unabhaengig vom Submit-Popup.
-
-```json
-{
-  "success": true,
-  "clues": [
-    {
-      "story_clue_text": "...",
-      "unlocked_at": "2026-09-09T10:15:00Z",
-      "puzzle_question": "Wie heisst der Viking-Gott des Donners?",
-      "station_id": 1,
-      "station_title": "Der Viking-Hafen"
-    }
-  ]
-}
-```
-
-Implementiert in `backend/api/team/clues.php`.
+| GET | /team/clues.php | Ermittlungsakte (ALT -- wird mit Abschluss der Ermittler-Chat-Migration entfernt, siehe 05_Technische_Spezifikation_Ermittler_Chat_v1.md) |
 
 ## Admin-Endpunkte
 
 Grundlegende Endpunkte (`/admin/dashboard.php`, `/admin/rallyes.php`, `/admin/teams.php`,
 `/admin/stations.php`, `/admin/puzzles.php`, `/admin/broadcast.php`, `/admin/leaderboard.php`,
-`/admin/positions.php`, Spielsteuerung unter `/admin/game/*`) unveraendert aus v2 -- siehe dort
-fuer vollstaendige Tabellen.
+`/admin/positions.php`, Spielsteuerung unter `/admin/game/*`, `/admin/start-codes.php`)
+unveraendert -- siehe v2/v3 fuer vollstaendige Tabellen.
 
-### GET /admin/start-codes.php?rallye_id= (NEU, 09.09.2026)
+## Ermittler-Chat-Endpunkte (NEU, Phase A -- siehe 05_Technische_Spezifikation_Ermittler_Chat_v1.md)
 
-Listet alle Startcodes einer Rallye -- benutzte (inkl. Teamname) und unbenutzte. Ersetzt den
-eigenstaendigen `StartCodesScreen.jsx`; die Anzeige ist jetzt Teil von `TeamsScreen.jsx` (siehe
-`00_Project_Brief_Entscheidungslog_v3.md`, Punkt 16).
+### Team-Endpunkte
 
-```json
-{
-  "success": true,
-  "start_codes": [
-    { "id": 27, "code": "PU9R24WG", "is_used": 1, "used_by_team_id": 4, "team_name": "Joe", "created_at": "2026-09-08T18:36:24Z" },
-    { "id": 28, "code": "NBGHJPUF", "is_used": 0, "used_by_team_id": null, "team_name": null, "created_at": "2026-09-08T18:36:24Z" }
-  ]
-}
-```
+| Methode | Endpunkt | Beschreibung |
+|---|---|---|
+| GET | /team/chat.php | Vollstaendiger Chat-Verlauf inkl. offener Antwortoptionen |
+| POST | /team/chat/respond.php | Antwort auf einen Knoten (Button-Wahl/Text/Zahl) einreichen |
+| GET | /team/open-tasks.php | Alle unbeantworteten Chat-Aufgaben des Teams |
 
-Implementiert in `backend/api/admin/start-codes.php`. `POST /admin/start-codes/generate.php`
-(Erzeugen neuer Codes) bleibt unveraendert bestehen.
+### Admin-Endpunkte
+
+| Methode | Endpunkt | Beschreibung |
+|---|---|---|
+| GET/POST/PUT/DELETE | /admin/story-nodes.php | CRUD fuer Chat-Knoten |
+| GET/POST/PUT/DELETE | /admin/story-node-options.php | CRUD fuer Antwortoptionen |
+| GET/POST/PUT/DELETE | /admin/suspects.php | CRUD fuer Verdaechtige |
+
+Implementiert in `backend/api/team/chat.php`, `backend/api/team/chat/respond.php`,
+`backend/api/team/open-tasks.php`, `backend/api/admin/story-nodes.php`,
+`backend/api/admin/story-node-options.php`, `backend/api/admin/suspects.php`.
 
 ## Beobachter-Endpunkte / System-Endpunkt / Fehlercodes
 
 Unveraendert aus v2 -- siehe dort fuer vollstaendige Tabellen.
-
-**Klarstellung (v3):** `admin/positions.php` bleibt der einzige Endpunkt mit Positionsdaten
-mehrerer Teams -- ausschliesslich fuer Admin/Viewer, niemals fuer Team-Clients.
 
 ---
 
