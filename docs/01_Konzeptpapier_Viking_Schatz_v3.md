@@ -3,7 +3,7 @@
 ## Eine interaktive Krimi-Stadtrallye fuer Jugendfreizeiten
 
 **Ersetzt:** 01_Konzeptpapier_Viking_Schatz_v2.md (v2, bitte archivieren)
-**Stand:** 09.09.2026, 14:21 Uhr (drei offene Punkte aus 14:16 Uhr geklaert)
+**Stand:** 09.09.2026, 14:33 Uhr (Ermittler-Persona benannt, Beispieldialog ergaenzt, zwei Knotentypen praezisiert)
 **Status dieser Version:** KONZEPTIONELL -- noch NICHT implementiert. Dieses Dokument haelt den
 gemeinsam erarbeiteten Stand der Spielkonzept-Weiterentwicklung fest (Ermittler-Chat statt
 reiner Stationsliste). Backend/Datenbank/Frontend aus v2 (Rallyes, Stationen, Raetsel,
@@ -56,15 +56,18 @@ Der Chat ersetzt den bisherigen reinen Raetsel-Screen als primaeres Interaktions
 Spuren (Hinweise, Beweisstuecke, Ermittlungsauftraege) werden nicht mehr als starre Stationsliste
 praesentiert, sondern als Nachrichten der Archaeologin, auf die das Team aktiv antworten muss.
 
-### Beispielhafter Spielfluss
+**Persona (GEKLAERT 14:33 Uhr):** Die Archaeologin heisst **Freya Lindqvist**.
 
-1. Archaeologin (Chat): "Ein Zeuge hat eine verdaechtige Person am Hafen gesehen. Kannst du dort
-   nachsehen?" (mit Kartenposition)
-2. Team laeuft zum Hafen, Station wird dort automatisch sichtbar/entdeckt.
-3. Team findet vor Ort ein Beweisstueck (Bild) und ein Raetsel, das im Chat als Aufgabe erscheint.
-4. Team beantwortet die Aufgabe im Chat (Button/Text/Zahl je nach Typ).
-5. Loesung schaltet automatisch neue(n) Lead(s) frei -- ggf. mit einer echten Entscheidung
-   zwischen zwei Spursträngen (Bezug zum bestehenden Twist: grosser vs. kleiner Schatz).
+**Zwei Knotentypen (GEKLAERT 14:33 Uhr):** Nicht jede Nachricht der Archaeologin erfordert eine
+Antwort. Es gibt zwei grundsaetzlich unterschiedliche Knotentypen:
+- **Info-/Verzweigungsknoten:** loesen eine oder mehrere gleichzeitige Leads aus (neue Eintraege
+  in "Offene Aufgaben"), erfordern selbst KEINE Antwort. Wenn ein Knoten mehrere parallele Spuren
+  gleichzeitig freigibt (z. B. zwei Stationen auf einmal), entscheidet das Team rein durch
+  Handeln -- wohin es zuerst laeuft --, OHNE vorher eine Auswahl im Chat treffen zu muessen. Es
+  gibt hierfuer bewusst KEINE Buttons "Spur A" / "Spur B".
+- **Antwortknoten:** erfordern tatsaechlich eine Reaktion -- entweder eine einfache
+  Button-Bestaetigung (z. B. eine Zustimmung/ein Ja) oder eine echte Raetselantwort per
+  Text-/Zahleneingabefeld mit richtig/falsch-Logik.
 
 ### Entschiedene Design-Punkte (09.09.2026, gemeinsam erarbeitet)
 
@@ -134,6 +137,64 @@ praesentiert, sondern als Nachrichten der Archaeologin, auf die das Team aktiv a
 
 (Die beiden anderen zuvor offenen Punkte -- `proximity`+`auto`-Verhalten und Punktabzugsregel
 fuer Spezial-Raetsel -- sind geklaert, siehe Punkt 4 und Punkt 7 oben.)
+
+---
+
+## Anhang: Beispiel-Dialogfluss (Referenz fuer Tonfall und Laenge)
+
+Dieser Beispielfluss nutzt bereits existierende Stationen aus der produktiven Datenbank (Hafen,
+Museum, Runenstein-Allee, Marktplatz) und dient als verbindliche Tonfall-Referenz fuer spaetere
+echte Lead-Texte. Laenge variiert bewusst zwischen kurz und ausfuehrlicher.
+
+**Knoten 0 -- Intro (Antwortknoten, einfache Bestaetigung):**
+> Freya Lindqvist: "Hallo! Ich bin Archaeologin und arbeite seit Monaten an einem Fall, der 1150
+> Jahre zurueckreicht. Ich brauche eure Hilfe. Seid ihr bereit?"
+> [Button: "Wir sind dabei!"]
+
+**Knoten 1 -- Erster Lead (Info-/Verzweigungsknoten, discovery_mode: lead_only, Ziel: Museum):**
+> Freya Lindqvist: "Ich habe die erste Seite von Bjoern Eisenhands Tagebuch im alten Museum
+> gefunden. Dort muesste noch mehr versteckt sein. Schaut euch dort um!"
+> [Kartenposition: Das alte Museum]
+> (kein Response noetig -- Station wird dadurch auf der Karte sichtbar)
+
+**Knoten 2 -- Am Museum (Antwortknoten, Zahleneingabe):**
+> Freya Lindqvist: "Gut, ihr seid da! An der Wand haengt eine alte Inschrift. Sie beginnt mit
+> einer Jahreszahl -- lest sie mir vor."
+> [Zahleneingabefeld]
+>
+> Bei falscher Antwort: "Hmm, das kommt mir nicht richtig vor. Schaut noch mal genauer hin."
+> (kein Punktabzug, beliebig oft erneut)
+>
+> Proaktiv nach 2 Fehlversuchen: "Kleiner Tipp: Die Zahl steht direkt unter dem Wappen, nicht im
+> Fliesstext."
+
+**Knoten 3 -- Zwei parallele Spuren (Info-/Verzweigungsknoten, KEIN Button):**
+> Freya Lindqvist: "Ich habe gleich zwei neue Spuren fuer euch: Am Marktplatz wurde offenbar ein
+> kleinerer Fund gemacht, und die Runenstein-Allee koennte der Schluessel zum grossen Schatz
+> sein. Verfolgt, was ihr wollt!"
+>
+> Erzeugt direkt ZWEI neue Eintraege in "Offene Aufgaben" ("Marktplatz untersuchen",
+> "Runenstein-Allee erkunden"), ohne Auswahl-Zwischenschritt. Beide bleiben dauerhaft offen,
+> unabhaengig davon, welche das Team zuerst bearbeitet.
+
+**Knoten 4b -- Runenstein-Allee (Antwortknoten mit Bild + Spezial-Raetsel-Verweis):**
+> Freya Lindqvist: "Die Runensteine hier tragen eine geheime Botschaft. Ich habe ein Foto fuer
+> euch -- koennt ihr die Symbole entschluesseln?"
+> [Bild: Foto des Runensteins]
+> [Button: "Raetsel oeffnen"] -> oeffnet bestehenden Bild-Raetsel-Screen, danach zurueck in den
+> Chat, Ergebnis erscheint automatisch als Team-Antwort
+>
+> Nach Abschluss: "Richtig! Das erklaert einiges..." (schaltet Knoten 5 frei)
+
+**Knoten 5 -- Proaktive Nachricht bei Inaktivitaet (kein Team-Trigger, zeitgesteuert):**
+> Freya Lindqvist: "Seid ihr noch da? Falls ihr nicht weiterwisst: Der Hafen ist manchmal auch
+> ohne meine Hilfe einen Besuch wert..." (nach z. B. 15 Minuten ohne Team-Aktivitaet)
+
+**Knoten 6 -- Zufallsfund (discovery_mode: proximity, ohne vorherigen Hinweis):**
+> (Team laeuft zufaellig am Hafen vorbei, Station erscheint automatisch auf der Karte, kein
+> vorheriger Chat-Hinweis noetig)
+> Freya Lindqvist: "Oh -- ihr seid am Hafen? Das ist interessant, damit hatte ich gar nicht
+> gerechnet. Schaut euch um, vielleicht findet ihr etwas."
 
 ---
 
