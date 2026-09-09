@@ -3,7 +3,7 @@
 **Arbeitstitel:** Der verschwundene Viking-Schatz
 **Produkt:** Wiederverwendbare mobile Webapp fuer Krimi-Stadtrallyes auf Jugendfreizeiten
 **Projektstatus:** Implementierung laeuft (Frontend + Backend bereits groesstenteils umgesetzt)
-**Stand:** 09.09.2026 (Ergaenzung 12:37 Uhr: story_clue-Entscheidung + DB-Abgleich gegen Live-Dump)
+**Stand:** 09.09.2026 (Ergaenzung 13:02 Uhr: Rallye-Auswahl-Dropdown im Admin-UI umgesetzt)
 **Ersetzt:** 00_Project_Brief_Entscheidungslog_v2.md (bitte archivieren, z. B. als `ARCHIV_00_..._v2.md`)
 
 ---
@@ -28,6 +28,8 @@
    `team_story_clues` und `rallyes.paused_at` bereits live existieren, aber im SQL-Schema (v2.2)
    noch fehlten. Mit v3 des Schemas nachgezogen (siehe `03_Datenbank_Schema_MySQL_MultiRallye_v3.sql`,
    bitte `03_..._v2.sql` archivieren).
+8. **Rallye-Auswahl im Admin-UI (09.09.2026):** Die feste `VITE_DEFAULT_RALLYE_ID=1` ist durch
+   einen im Admin-UI waehlbaren Dropdown ersetzt (siehe Punkt 15 unten).
 
 ---
 
@@ -110,6 +112,17 @@
     (`puzzles.story_clue_text`, `team_story_clues`, siehe Schema v3); `submit.php` wurde am
     09.09.2026 entsprechend korrigiert (vorherige Version nutzte faelschlich `stations.story_text`
     und schrieb nicht in `team_story_clues`). `GET /team/clues.php` war bereits korrekt implementiert.
+15. **Rallye-Auswahl im Admin-UI:** Die feste `VITE_DEFAULT_RALLYE_ID=1` wurde durch einen
+    `RallyeContext` (`frontend/admin-app/src/context/RallyeContext.jsx`) ersetzt, der alle Rallyes
+    ueber `GET /admin/rallyes.php` laedt und die Auswahl in `localStorage` persistiert. Ein
+    Dropdown im Header (`App.jsx`) erlaubt Admin/Beobachter den Wechsel zwischen Rallyes; alle
+    acht betroffenen Screens (`DashboardScreen`, `LeaderboardScreen`, `MapScreen`,
+    `PuzzlesEditorScreen`, `StationsEditorScreen`, `StartCodesScreen`, `TeamsScreen`,
+    `BroadcastsScreen`) lesen `rallye_id` jetzt aus `useRallye()` statt aus der Env-Variable.
+    `RallyesScreen.jsx` (Anlegen/Archivieren) bleibt unveraendert und laedt seine Liste weiterhin
+    unabhaengig -- bewusste kleine Duplikation, fuer dieses Projekt vertretbar. Die Env-Variable
+    `VITE_DEFAULT_RALLYE_ID` wird von der `admin-app` nicht mehr benoetigt und kann bei
+    Gelegenheit aus `.env`/`.env.example` entfernt werden.
 
 ## Weiterhin offen
 

@@ -1,18 +1,22 @@
 // admin-app/src/screens/LeaderboardScreen.jsx
+// NEU (09.09.2026): rallye_id kommt aus dem RallyeContext (Admin-Dropdown)
+// statt aus der festen VITE_DEFAULT_RALLYE_ID.
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
+import { useRallye } from '../context/RallyeContext';
 
-const RALLYE_ID = import.meta.env.VITE_DEFAULT_RALLYE_ID;
 const POLL_INTERVAL_MS = 10_000;
 
 export default function LeaderboardScreen() {
+  const { rallyeId } = useRallye();
   const [ranking, setRanking] = useState([]);
 
   useEffect(() => {
+    if (!rallyeId) return;
     let cancelled = false;
     async function poll() {
       try {
-        const result = await api.getLeaderboard(RALLYE_ID);
+        const result = await api.getLeaderboard(rallyeId);
         if (!cancelled) setRanking(result.ranking || []);
       } catch {
         // letzten Stand behalten
@@ -24,7 +28,7 @@ export default function LeaderboardScreen() {
       cancelled = true;
       clearInterval(intervalId);
     };
-  }, []);
+  }, [rallyeId]);
 
   return (
     <div className="card">

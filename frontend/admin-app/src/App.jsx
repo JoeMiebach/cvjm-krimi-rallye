@@ -1,6 +1,9 @@
 // admin-app/src/App.jsx
+// NEU (09.09.2026): RallyeProvider + Dropdown im Header ersetzen die feste
+// VITE_DEFAULT_RALLYE_ID. Siehe 00_Project_Brief_Entscheidungslog_v3.md, Punkt 15.
 import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { RallyeProvider, useRallye } from './context/RallyeContext';
 import LoginScreen from './screens/LoginScreen';
 import DashboardScreen from './screens/DashboardScreen';
 import RallyesScreen from './screens/RallyesScreen';
@@ -12,10 +15,6 @@ import BroadcastsScreen from './screens/BroadcastsScreen';
 import LeaderboardScreen from './screens/LeaderboardScreen';
 import MapScreen from './screens/MapScreen';
 
-// requireAdmin=true sperrt die Route komplett für viewer (z. B. /rallyes, /teams).
-// Für Screens, die admin UND viewer sehen dürfen (Dashboard, Leaderboard, Map),
-// wird requireAdmin weggelassen; die Schreib-Buttons blenden sich innerhalb
-// des jeweiligen Screens über isAdmin aus.
 function ProtectedRoute({ children, requireAdmin = false }) {
   const { status, isAdmin } = useAuth();
   if (status === 'checking') {
@@ -24,6 +23,29 @@ function ProtectedRoute({ children, requireAdmin = false }) {
   if (status !== 'loggedIn') return <Navigate to="/login" replace />;
   if (requireAdmin && !isAdmin) return <Navigate to="/dashboard" replace />;
   return children;
+}
+
+// NEU: Rallye-Auswahl-Dropdown im Header. Ersetzt die feste
+// VITE_DEFAULT_RALLYE_ID. Bei leerer Liste (z.B. noch keine Rallye angelegt)
+// wird ein Hinweis angezeigt.
+function RallyeSelect() {
+  const { rallyes, rallyeId, setRallyeId, status } = useRallye();
+  if (status === 'loading') return <span className="text-sm text-ink/60">Lade Rallyes...</span>;
+  if (status === 'error') return <span className="text-sm text-red-600">Rallyes konnten nicht geladen werden</span>;
+  if (rallyes.length === 0) return <span className="text-sm text-ink/60">Keine Rallye angelegt</span>;
+  return (
+    <select
+      className="input-field text-sm"
+      value={rallyeId ?? ''}
+      onChange={(e) => setRallyeId(Number(e.target.value))}
+    >
+      {rallyes.map((r) => (
+        <option key={r.id} value={r.id}>
+          {r.name}{r.is_archived ? ' (archiviert)' : ''}
+        </option>
+      ))}
+    </select>
+  );
 }
 
 function AppShell({ children }) {
@@ -36,30 +58,33 @@ function AppShell({ children }) {
   }
 
   return (
-    <div className="min-h-screen bg-surface">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b bg-white px-4 py-3">
-        <nav className="flex flex-wrap gap-3 text-sm font-medium text-primary-700">
-          <Link to="/dashboard">Dashboard</Link>
-          <Link to="/rallyes">Rallyes</Link>
-          <Link to="/teams">Teams</Link>
-          <Link to="/start-codes">Startcodes</Link>
-          <Link to="/stations">Stationen</Link>
-          <Link to="/puzzles">Rätsel</Link>
-          <Link to="/broadcasts">Broadcasts</Link>
-          <Link to="/leaderboard">Rangliste</Link>
-          <Link to="/map">Karte</Link>
-        </nav>
-        <div className="flex items-center gap-3 text-sm">
-          <span className="text-ink/60">
-            {admin?.name} ({role})
-          </span>
-          <button className="btn-secondary" onClick={handleLogout}>
-            Abmelden
-          </button>
-        </div>
-      </header>
-      <main className="p-4">{children}</main>
-    </div>
+    <RallyeProvider>
+      <div className="min-h-screen bg-surface">
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b bg-white px-4 py-3">
+          <nav className="flex flex-wrap gap-3 text-sm font-medium text-primary-700">
+            <Link to="/dashboard">Dashboard</Link>
+            <Link to="/rallyes">Rallyes</Link>
+            <Link to="/teams">Teams</Link>
+            <Link to="/start-codes">Startcodes</Link>
+            <Link to="/stations">Stationen</Link>
+            <Link to="/puzzles">Rätsel</Link>
+            <Link to="/broadcasts">Broadcasts</Link>
+            <Link to="/leaderboard">Rangliste</Link>
+            <Link to="/map">Karte</Link>
+          </nav>
+          <div className="flex items-center gap-3 text-sm">
+            <RallyeSelect />
+            <span className="text-ink/60">
+              {admin?.name} ({role})
+            </span>
+            <button className="btn-secondary" onClick={handleLogout}>
+              Abmelden
+            </button>
+          </div>
+        </header>
+        <main className="p-4">{children}</main>
+      </div>
+    </RallyeProvider>
   );
 }
 

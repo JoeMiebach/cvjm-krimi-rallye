@@ -10,11 +10,13 @@
 // Verwendet CircleMarker statt Marker mit Bild-Icon, weil Leafletsstandard-
 // Icon-Bilder beim Vite-Bundling oft nicht automatisch mit ausgeliefert
 // werden (bekannter Stolperstein) -- CircleMarker braucht keine Bild-Assets.
+// NEU (09.09.2026): rallye_id kommt aus dem RallyeContext (Admin-Dropdown)
+// statt aus der festen VITE_DEFAULT_RALLYE_ID.
 import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
 import { api } from '../api/client';
+import { useRallye } from '../context/RallyeContext';
 
-const RALLYE_ID = import.meta.env.VITE_DEFAULT_RALLYE_ID;
 const POLL_INTERVAL_MS = 10_000;
 // Fallback-Zentrum, bis rallye_city-Koordinaten aus /config.php genutzt werden.
 const DEFAULT_CENTER = [59.3293, 18.0686];
@@ -29,15 +31,17 @@ function formatLastUpdate(isoString) {
 }
 
 export default function MapScreen() {
+  const { rallyeId } = useRallye();
   const [positions, setPositions] = useState([]);
   const [stations, setStations] = useState([]);
 
   useEffect(() => {
+    if (!rallyeId) return;
     let cancelled = false;
 
     async function loadStations() {
       try {
-        const result = await api.getStations(RALLYE_ID);
+        const result = await api.getStations(rallyeId);
         if (!cancelled) setStations(result.stations || []);
       } catch {
         // Stationen ändern sich selten während des Spiels -- bei Fehler
@@ -47,7 +51,7 @@ export default function MapScreen() {
 
     async function pollPositions() {
       try {
-        const result = await api.getPositions(RALLYE_ID);
+        const result = await api.getPositions(rallyeId);
         if (!cancelled) setPositions(result.positions || []);
       } catch {
         // letzten Stand behalten
@@ -61,7 +65,7 @@ export default function MapScreen() {
       cancelled = true;
       clearInterval(intervalId);
     };
-  }, []);
+  }, [rallyeId]);
 
   const teamPoints = positions.filter((p) => p.current_latitude && p.current_longitude);
   const stationPoints = stations.filter((s) => s.latitude && s.longitude);

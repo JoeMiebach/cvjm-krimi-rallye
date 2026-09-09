@@ -4,10 +4,11 @@
 // Rätsel mit, PUT akzeptiert optionales "answers"-Array und ersetzt die
 // bestehenden Antworten). Ohne dieses Backend-Update funktioniert das
 // Bearbeiten von Antworten weiterhin nicht.
+// NEU (09.09.2026): rallye_id (fuer loadStations) kommt aus dem RallyeContext
+// (Admin-Dropdown) statt aus der festen VITE_DEFAULT_RALLYE_ID.
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
-
-const RALLYE_ID = import.meta.env.VITE_DEFAULT_RALLYE_ID;
+import { useRallye } from '../context/RallyeContext';
 
 const PUZZLE_TYPES = [
   { value: 'text', label: 'Freitext' },
@@ -60,6 +61,7 @@ const emptyForm = {
 };
 
 export default function PuzzlesEditorScreen() {
+  const { rallyeId } = useRallye();
   const [stations, setStations] = useState([]);
   const [selectedStationId, setSelectedStationId] = useState('');
   const [puzzles, setPuzzles] = useState([]);
@@ -69,7 +71,8 @@ export default function PuzzlesEditorScreen() {
   const [loadingPuzzles, setLoadingPuzzles] = useState(false);
 
   async function loadStations() {
-    const result = await api.getStations(RALLYE_ID);
+    if (!rallyeId) return;
+    const result = await api.getStations(rallyeId);
     const list = result.stations || [];
     setStations(list);
     if (!selectedStationId && list.length > 0) {
@@ -93,7 +96,7 @@ export default function PuzzlesEditorScreen() {
 
   useEffect(() => {
     loadStations();
-  }, []);
+  }, [rallyeId]);
 
   useEffect(() => {
     loadPuzzles(selectedStationId);

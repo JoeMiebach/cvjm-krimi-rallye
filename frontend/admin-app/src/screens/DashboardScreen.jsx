@@ -8,11 +8,13 @@
 // 3. Neu: zustandsabhängige Buttons (Variante B) -- Start / Pausieren /
 //    Fortsetzen / Beenden je nach is_game_running & is_paused, statt immer
 //    alle vier Aktionen gleichzeitig anzubieten.
+// NEU (09.09.2026): rallye_id kommt aus dem RallyeContext (Admin-Dropdown)
+// statt aus der festen VITE_DEFAULT_RALLYE_ID.
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useRallye } from '../context/RallyeContext';
 import { api } from '../api/client';
 
-const RALLYE_ID = import.meta.env.VITE_DEFAULT_RALLYE_ID;
 const POLL_INTERVAL_MS = 10_000;
 
 function formatRemaining(seconds) {
@@ -24,16 +26,18 @@ function formatRemaining(seconds) {
 
 export default function DashboardScreen() {
   const { role } = useAuth();
+  const { rallyeId } = useRallye();
   const isAdmin = role === 'admin';
   const [dashboard, setDashboard] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (!rallyeId) return;
     let cancelled = false;
     async function poll() {
       try {
-        const result = await api.getDashboard(RALLYE_ID);
+        const result = await api.getDashboard(rallyeId);
         if (!cancelled) setDashboard(result.dashboard || result);
       } catch {
         // Letzten Stand behalten, nächster Poll versucht es erneut
@@ -45,16 +49,16 @@ export default function DashboardScreen() {
       cancelled = true;
       clearInterval(intervalId);
     };
-  }, []);
+  }, [rallyeId]);
 
   async function handleGameAction(action) {
-    if (!isAdmin) return;
+    if (!isAdmin || !rallyeId) return;
     setBusy(true);
     setError(null);
     try {
-      if (action === 'start') await api.startGame(RALLYE_ID);
-      if (action === 'pause') await api.pauseGame(RALLYE_ID);
-      if (action === 'end') await api.endGame(RALLYE_ID);
+      if (action === 'start') await api.startGame(rallyeId);
+      if (action === 'pause') await api.pauseGame(rallyeId);
+      if (action === 'end') await api.endGame(rallyeId);
       if (action === 'reset') {
         const confirmed = window.confirm(
           'Achtung: Das löscht ALLE Teams, Startcodes und Fortschritte dieser Rallye unwiderruflich. Fortfahren?'
@@ -63,9 +67,9 @@ export default function DashboardScreen() {
           setBusy(false);
           return;
         }
-        await api.resetGame(RALLYE_ID);
+        await api.resetGame(rallyeId);
       }
-      const result = await api.getDashboard(RALLYE_ID);
+      const result = await api.getDashboard(rallyeId);
       setDashboard(result.dashboard || result);
     } catch (err) {
       setError(err.message);

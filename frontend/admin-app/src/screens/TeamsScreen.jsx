@@ -1,20 +1,23 @@
 // admin-app/src/screens/TeamsScreen.jsx
+// NEU (09.09.2026): rallye_id kommt aus dem RallyeContext (Admin-Dropdown)
+// statt aus der festen VITE_DEFAULT_RALLYE_ID.
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
-
-const RALLYE_ID = import.meta.env.VITE_DEFAULT_RALLYE_ID;
+import { useRallye } from '../context/RallyeContext';
 
 export default function TeamsScreen() {
+  const { rallyeId } = useRallye();
   const [teams, setTeams] = useState([]);
 
   async function load() {
-    const result = await api.getTeams(RALLYE_ID);
+    if (!rallyeId) return;
+    const result = await api.getTeams(rallyeId);
     setTeams(result.teams || []);
   }
 
   useEffect(() => {
     load();
-  }, []);
+  }, [rallyeId]);
 
   async function handleReset(teamId) {
     await api.resetTeamProgress(teamId);

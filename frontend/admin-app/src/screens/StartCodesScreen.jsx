@@ -1,19 +1,22 @@
 // admin-app/src/screens/StartCodesScreen.jsx
+// NEU (09.09.2026): rallye_id kommt aus dem RallyeContext (Admin-Dropdown)
+// statt aus der festen VITE_DEFAULT_RALLYE_ID.
 import { useState } from 'react';
 import { api } from '../api/client';
-
-const RALLYE_ID = import.meta.env.VITE_DEFAULT_RALLYE_ID;
+import { useRallye } from '../context/RallyeContext';
 
 export default function StartCodesScreen() {
+  const { rallyeId } = useRallye();
   const [count, setCount] = useState(10);
   const [codes, setCodes] = useState([]);
   const [generating, setGenerating] = useState(false);
 
   async function handleGenerate(e) {
     e.preventDefault();
+    if (!rallyeId) return;
     setGenerating(true);
     try {
-      const result = await api.generateStartCodes(RALLYE_ID, Number(count));
+      const result = await api.generateStartCodes(rallyeId, Number(count));
       setCodes(result.codes || []);
     } finally {
       setGenerating(false);
