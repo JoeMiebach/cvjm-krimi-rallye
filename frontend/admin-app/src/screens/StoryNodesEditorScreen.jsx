@@ -7,9 +7,12 @@
 // leads_to_node_id/blocks_alternate_node_id/unlocks_suspect_id referenzieren
 // koennen muss. Optionen koennen erst verwaltet werden, sobald der Knoten
 // gespeichert ist (braucht eine node_id).
+// GEAENDERT (Phase E, Ermittler-Chat-System): Antworttyp "photo_ref" ergaenzt
+// (Foto-Einreichung, siehe backend/migrations/002_ermittler_chat_phase_e.sql).
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useRallye } from '../context/RallyeContext';
+
 
 const NODE_TYPES = [
   { value: 'info', label: 'Info' },
@@ -18,19 +21,23 @@ const NODE_TYPES = [
   { value: 'accusation', label: 'Anklage' }
 ];
 
+
 const RESPONSE_TYPES = [
   { value: 'none', label: 'Keine (automatische Kaskade an alle Optionen)' },
   { value: 'buttons', label: 'Buttons' },
   { value: 'text', label: 'Freitext' },
   { value: 'number', label: 'Zahl' },
-  { value: 'puzzle_ref', label: 'Verweis auf Rätsel (öffnet PuzzlesScreen)' }
+  { value: 'puzzle_ref', label: 'Verweis auf Rätsel (öffnet PuzzlesScreen)' },
+  { value: 'photo_ref', label: 'Foto-Einreichung (Admin-Review)' }
 ];
+
 
 const PROACTIVE_TRIGGERS = [
   { value: 'none', label: 'Keiner' },
   { value: 'inactivity', label: 'Inaktivität (Minuten)' },
   { value: 'wrong_attempts', label: 'Fehlversuche bei verknüpftem Knoten' }
 ];
+
 
 const emptyNodeForm = {
   type: 'info',
@@ -51,6 +58,7 @@ const emptyNodeForm = {
   is_active: true
 };
 
+
 const emptyOptionForm = {
   label: '',
   correct_value: '',
@@ -59,9 +67,11 @@ const emptyOptionForm = {
   unlocks_suspect_id: ''
 };
 
+
 function toNullableInt(value) {
   return value === '' || value === null || value === undefined ? null : Number(value);
 }
+
 
 export default function StoryNodesEditorScreen() {
   const { rallyeId } = useRallye();
@@ -70,14 +80,17 @@ export default function StoryNodesEditorScreen() {
   const [stations, setStations] = useState([]);
   const [puzzles, setPuzzles] = useState([]);
 
+
   const [nodeForm, setNodeForm] = useState(emptyNodeForm);
   const [editingNodeId, setEditingNodeId] = useState(null);
   const [nodeFeedback, setNodeFeedback] = useState(null);
+
 
   const [options, setOptions] = useState([]);
   const [optionForm, setOptionForm] = useState(emptyOptionForm);
   const [editingOptionId, setEditingOptionId] = useState(null);
   const [optionFeedback, setOptionFeedback] = useState(null);
+
 
   async function loadNodes() {
     if (!rallyeId) return;
@@ -85,17 +98,20 @@ export default function StoryNodesEditorScreen() {
     setNodes(result.story_nodes || []);
   }
 
+
   async function loadSuspects() {
     if (!rallyeId) return;
     const result = await api.getSuspects(rallyeId);
     setSuspects(result.suspects || []);
   }
 
+
   async function loadStations() {
     if (!rallyeId) return;
     const result = await api.getStations(rallyeId);
     setStations(result.stations || []);
   }
+
 
   async function loadPuzzles(stationId) {
     if (!stationId) {
@@ -106,6 +122,7 @@ export default function StoryNodesEditorScreen() {
     setPuzzles(result.puzzles || []);
   }
 
+
   async function loadOptions(nodeId) {
     if (!nodeId) {
       setOptions([]);
@@ -115,19 +132,23 @@ export default function StoryNodesEditorScreen() {
     setOptions(result.options || []);
   }
 
+
   useEffect(() => {
     loadNodes();
     loadSuspects();
     loadStations();
   }, [rallyeId]);
 
+
   useEffect(() => {
     loadPuzzles(nodeForm.station_id);
   }, [nodeForm.station_id]);
 
+
   function handleNodeChange(field, value) {
     setNodeForm((prev) => ({ ...prev, [field]: value }));
   }
+
 
   function handleEditNode(node) {
     setEditingNodeId(node.id);
@@ -154,6 +175,7 @@ export default function StoryNodesEditorScreen() {
     loadOptions(node.id);
   }
 
+
   function handleCancelNodeEdit() {
     setEditingNodeId(null);
     setNodeForm(emptyNodeForm);
@@ -161,6 +183,7 @@ export default function StoryNodesEditorScreen() {
     setOptionForm(emptyOptionForm);
     setEditingOptionId(null);
   }
+
 
   async function handleSubmitNode(e) {
     e.preventDefault();
@@ -183,6 +206,7 @@ export default function StoryNodesEditorScreen() {
       is_active: nodeForm.is_active
     };
 
+
     try {
       if (editingNodeId) {
         await api.updateStoryNode(editingNodeId, payload);
@@ -199,15 +223,18 @@ export default function StoryNodesEditorScreen() {
     }
   }
 
+
   async function handleDeleteNode(id) {
     await api.deleteStoryNode(id);
     if (editingNodeId === id) handleCancelNodeEdit();
     await loadNodes();
   }
 
+
   function handleOptionChange(field, value) {
     setOptionForm((prev) => ({ ...prev, [field]: value }));
   }
+
 
   function handleEditOption(option) {
     setEditingOptionId(option.id);
@@ -220,10 +247,12 @@ export default function StoryNodesEditorScreen() {
     });
   }
 
+
   function handleCancelOptionEdit() {
     setEditingOptionId(null);
     setOptionForm(emptyOptionForm);
   }
+
 
   async function handleSubmitOption(e) {
     e.preventDefault();
@@ -251,12 +280,16 @@ export default function StoryNodesEditorScreen() {
     }
   }
 
+
   async function handleDeleteOption(id) {
     await api.deleteStoryNodeOption(id);
     await loadOptions(editingNodeId);
   }
 
+
   const isInfoNode = nodeForm.response_type === 'none';
+  const isPhotoNode = nodeForm.response_type === 'photo_ref';
+
 
   return (
     <div className="space-y-4">
@@ -264,6 +297,7 @@ export default function StoryNodesEditorScreen() {
         <p className="sm:col-span-2 text-sm text-ink/60">
           {editingNodeId ? `Knoten #${editingNodeId} bearbeiten` : 'Neuen Chat-Knoten anlegen'}
         </p>
+
 
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-ink/80">Knoten-Typ</span>
@@ -280,6 +314,7 @@ export default function StoryNodesEditorScreen() {
           </select>
         </label>
 
+
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-ink/80">Antworttyp</span>
           <select
@@ -293,7 +328,14 @@ export default function StoryNodesEditorScreen() {
               </option>
             ))}
           </select>
+          {isPhotoNode && (
+            <span className="mt-1 block text-xs text-ink/50">
+              Team lädt ein Foto hoch; Bonus-Punkte vergibt ein Admin danach manuell unter
+              „Fotos" (Sichtprüfung).
+            </span>
+          )}
         </label>
+
 
         <label className="block sm:col-span-2">
           <span className="mb-1 block text-sm font-medium text-ink/80">
@@ -309,6 +351,7 @@ export default function StoryNodesEditorScreen() {
           />
         </label>
 
+
         <label className="block sm:col-span-2">
           <span className="mb-1 block text-sm font-medium text-ink/80">Bild-URL (optional)</span>
           <input
@@ -318,6 +361,7 @@ export default function StoryNodesEditorScreen() {
             onChange={(e) => handleNodeChange('image_url', e.target.value)}
           />
         </label>
+
 
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-ink/80">
@@ -344,6 +388,7 @@ export default function StoryNodesEditorScreen() {
           />
         </label>
 
+
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-ink/80">
             Station-Bezug (optional, für Kartenlink/puzzle_ref)
@@ -362,9 +407,10 @@ export default function StoryNodesEditorScreen() {
           </select>
         </label>
 
+
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-ink/80">
-            Rätsel-Bezug (optional, nur bei Antworttyp „Verweis auf Rätsel“)
+            Rätsel-Bezug (optional, nur bei Antworttyp „Verweis auf Rätsel")
           </span>
           <select
             className="input-field"
@@ -386,6 +432,7 @@ export default function StoryNodesEditorScreen() {
           )}
         </label>
 
+
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-ink/80">
             Offenbart Verdächtigen (optional)
@@ -404,6 +451,7 @@ export default function StoryNodesEditorScreen() {
           </select>
         </label>
 
+
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-ink/80">Punkte</span>
           <input
@@ -412,7 +460,14 @@ export default function StoryNodesEditorScreen() {
             value={nodeForm.points}
             onChange={(e) => handleNodeChange('points', e.target.value)}
           />
+          {isPhotoNode && (
+            <span className="mt-1 block text-xs text-ink/50">
+              Wird bei Foto-Knoten NICHT automatisch vergeben -- nur als Referenzwert für die
+              Admin-Vergabe unter „Fotos".
+            </span>
+          )}
         </label>
+
 
         <label className="flex items-center gap-2">
           <input
@@ -425,6 +480,7 @@ export default function StoryNodesEditorScreen() {
           </span>
         </label>
 
+
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -433,6 +489,7 @@ export default function StoryNodesEditorScreen() {
           />
           <span className="text-sm font-medium text-ink/80">Aktiv</span>
         </label>
+
 
         <div className="sm:col-span-2 rounded-lg border border-ink/10 p-3">
           <span className="mb-2 block text-sm font-semibold text-ink/80">
@@ -497,6 +554,7 @@ export default function StoryNodesEditorScreen() {
           </div>
         </div>
 
+
         <div className="sm:col-span-2 flex gap-2">
           <button type="submit" className="btn-primary">
             {editingNodeId ? 'Knoten speichern' : 'Knoten anlegen'}
@@ -510,6 +568,7 @@ export default function StoryNodesEditorScreen() {
       </form>
       {nodeFeedback && <p className="text-sm text-primary-700">{nodeFeedback}</p>}
 
+
       {editingNodeId && (
         <div className="card space-y-3">
           <h2 className="text-lg font-bold text-primary-700">
@@ -517,9 +576,12 @@ export default function StoryNodesEditorScreen() {
           </h2>
           <p className="text-xs text-ink/60">
             {isInfoNode
-              ? 'Antworttyp „Keine“ -- diese Optionen sind KEINE sichtbaren Buttons, sondern werden per leads_to_node_id automatisch als Folgeknoten zugestellt (Kaskade).'
-              : 'Diese Optionen erscheinen als sichtbare Buttons im Team-Chat.'}
+              ? 'Antworttyp „Keine" -- diese Optionen sind KEINE sichtbaren Buttons, sondern werden per leads_to_node_id automatisch als Folgeknoten zugestellt (Kaskade).'
+              : isPhotoNode
+                ? 'Bei Foto-Knoten wird höchstens EINE Option ausgewertet: deren leads_to_node_id (falls gesetzt) wird nach dem Einreichen automatisch als Folgeknoten zugestellt.'
+                : 'Diese Optionen erscheinen als sichtbare Buttons im Team-Chat.'}
           </p>
+
 
           <ul className="space-y-2">
             {options.map((opt) => (
@@ -547,6 +609,7 @@ export default function StoryNodesEditorScreen() {
             {options.length === 0 && <p className="text-ink/60">Noch keine Optionen.</p>}
           </ul>
 
+
           <form onSubmit={handleSubmitOption} className="grid gap-3 border-t pt-3 sm:grid-cols-2">
             <label className="block sm:col-span-2">
               <span className="mb-1 block text-sm font-medium text-ink/80">
@@ -561,6 +624,7 @@ export default function StoryNodesEditorScreen() {
               />
             </label>
 
+
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-ink/80">
                 Korrekter Wert (nur bei Antworttyp Text/Zahl)
@@ -572,6 +636,7 @@ export default function StoryNodesEditorScreen() {
                 onChange={(e) => handleOptionChange('correct_value', e.target.value)}
               />
             </label>
+
 
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-ink/80">
@@ -591,6 +656,7 @@ export default function StoryNodesEditorScreen() {
               </select>
             </label>
 
+
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-ink/80">
                 Blockiert alternativen Knoten (optional, für Wendepunkte)
@@ -608,6 +674,7 @@ export default function StoryNodesEditorScreen() {
                 ))}
               </select>
             </label>
+
 
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-ink/80">
@@ -627,6 +694,7 @@ export default function StoryNodesEditorScreen() {
               </select>
             </label>
 
+
             <div className="sm:col-span-2 flex gap-2">
               <button type="submit" className="btn-primary">
                 {editingOptionId ? 'Option speichern' : 'Option hinzufügen'}
@@ -641,6 +709,7 @@ export default function StoryNodesEditorScreen() {
           {optionFeedback && <p className="text-sm text-primary-700">{optionFeedback}</p>}
         </div>
       )}
+
 
       <div className="card">
         <h2 className="mb-3 text-lg font-bold text-primary-700">Alle Chat-Knoten dieser Rallye</h2>

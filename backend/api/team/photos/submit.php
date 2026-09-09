@@ -1,0 +1,66 @@
+<?php
+// POST /api/team/photos/submit.php - siehe 05_Technische_Spezifikation_Ermittler_Chat_v1.md
+// NEU (Phase E, Ermittler-Chat-System): multipart/form-data-Upload fuer
+// photo_ref-Knoten. Der Knoten wird sofort als abgeschlossen markiert (das
+// Einreichen selbst ist die "Antwort"); Bonus-Punkte vergibt ein Admin erst
+// nach Sichtpruefung ueber POST /admin/photo-submissions/award.php.
+require_once __DIR__ . '/../../bootstrap.php';
+requireMethod('POST');
+$team = requireTeamAuth();
+
+$nodeId = (int)($_POST['node_id'] ?? 0);
+if ($nodeId === 0) {
+    jsonError(400, 'node_id fehlt');
+}
+
+$stmt = $pdo->prepare(
+    "SELECT tsl.id AS log_id, tsl.is_completed, sn.response_type
+     FROM team_story_log tsl
+     JOIN story_nodes sn ON sn.id = tsl.node_id
+     WHERE tsl.team_id = ? AND tsl.node_id = ?"
+);
+$stmt->execute([$team['id'], $nodeId]);
+$log = $stmt->fetch();
+
+if (!$log) {
+    jsonError(404, 'Dieser Knoten wurde diesem Team noch nicht zugestellt');
+}
+if ($log['response_type'] !== 'photo_ref') {
+    jsonError(400, 'Dieser Knoten erwartet kein Foto');
+}
+if ((bool)$log['is_completed']) {
+    jsonError(409, 'Fuer diesen Knoten wurde bereits ein Foto eingereicht');
+}
+
+if (!isset($_FILES['photo']) || $_FILES['photo']['error'] !== UPLOAD_ERR_OK) {
+    jsonError(400, 'Kein gueltiges Foto empfangen');
+}
+
+$allowedTypes = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+$mimeType = mime_content_type($_FILES['photo']['tmp_name']);
+if (!isset($allowedTypes[$mimeType])) {
+    jsonError(400, 'Nur JPEG, PNG oder WebP erlaubt');
+}
+if ($_FILES['photo']['size'] > 8 * 1024 * 1024) {
+    jsonError(400, 'Foto zu gross (max. 8 MB)');
+}
+
+$uploadDir = __DIR__ . '/../../../uploads/photos/';
+if (!is_dir($uploadDir)) {
+    mkdir($uploadDir, 0755, true);
+}
+$filename = sprintf('team%d_node%d_%d.%s', $team['id'], $nodeId, time(), $allowedTypes[$mimeType]);
+if (!move_uploaded_file($_FILES['photo']['tmp_name'], $uploadDir . $filename)) {
+    jsonError(500, 'Foto konnte nicht gespeichert werden');
+}
+$photoPath = '/uploads/photos/' . $filename;
+
+$pdo->prepare(
+    "INSERT INTO photo_submissions (team_id, node_id, photo_path) VALUES (?, ?, ?)"
+)->execute([$team['id'], $nodeId, $photoPath]);
+
+$pdo->prepare(
+    "UPDATE team_story_log SET is_completed = 1, responded_at = NOW(), team_response = ? WHERE id = ?"
+)->execute([$photoPath, $log['log_id']]);
+
+jsonResponse(200, ['success' => true, 'photo_path' => $photoPath]);

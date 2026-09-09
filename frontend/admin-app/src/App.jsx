@@ -6,6 +6,8 @@
 // Siehe 00_Project_Brief_Entscheidungslog_v3.md, Punkt 16.
 // NEU (Phase D, Ermittler-Chat-System): Routen/Nav-Links "/story-nodes"
 // (StoryNodesEditorScreen) und "/suspects" (SuspectsEditorScreen) ergaenzt.
+// NEU (Phase E, Ermittler-Chat-System): Route/Nav-Link "/photo-submissions"
+// (PhotoSubmissionsScreen) ergaenzt.
 import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { RallyeProvider, useRallye } from './context/RallyeContext';
@@ -17,9 +19,11 @@ import StationsEditorScreen from './screens/StationsEditorScreen';
 import PuzzlesEditorScreen from './screens/PuzzlesEditorScreen';
 import StoryNodesEditorScreen from './screens/StoryNodesEditorScreen';
 import SuspectsEditorScreen from './screens/SuspectsEditorScreen';
+import PhotoSubmissionsScreen from './screens/PhotoSubmissionsScreen';
 import BroadcastsScreen from './screens/BroadcastsScreen';
 import LeaderboardScreen from './screens/LeaderboardScreen';
 import MapScreen from './screens/MapScreen';
+
 
 function ProtectedRoute({ children, requireAdmin = false }) {
   const { status, isAdmin } = useAuth();
@@ -30,6 +34,7 @@ function ProtectedRoute({ children, requireAdmin = false }) {
   if (requireAdmin && !isAdmin) return <Navigate to="/dashboard" replace />;
   return children;
 }
+
 
 function RallyeSelect() {
   const { rallyes, rallyeId, setRallyeId, status } = useRallye();
@@ -51,14 +56,17 @@ function RallyeSelect() {
   );
 }
 
+
 function AppShell({ children }) {
   const { admin, role, logout } = useAuth();
   const navigate = useNavigate();
+
 
   function handleLogout() {
     logout();
     navigate('/login');
   }
+
 
   return (
     <RallyeProvider>
@@ -72,6 +80,7 @@ function AppShell({ children }) {
             <Link to="/puzzles">Rätsel</Link>
             <Link to="/story-nodes">Chat-Knoten</Link>
             <Link to="/suspects">Verdächtige</Link>
+            <Link to="/photo-submissions">Fotos</Link>
             <Link to="/broadcasts">Broadcasts</Link>
             <Link to="/leaderboard">Rangliste</Link>
             <Link to="/map">Karte</Link>
@@ -91,6 +100,7 @@ function AppShell({ children }) {
     </RallyeProvider>
   );
 }
+
 
 export default function App() {
   return (
@@ -149,6 +159,14 @@ export default function App() {
         element={
           <ProtectedRoute requireAdmin>
             <AppShell><SuspectsEditorScreen /></AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/photo-submissions"
+        element={
+          <ProtectedRoute requireAdmin>
+            <AppShell><PhotoSubmissionsScreen /></AppShell>
           </ProtectedRoute>
         }
       />

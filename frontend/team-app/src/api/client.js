@@ -1,6 +1,8 @@
 // team-app/src/api/client.js
 // getChat(), respondToChat(), getOpenTasks() (Phase B), getSuspects() (Phase C)
 // ergaenzt. getClues() (altes Ermittlungsakte-System) entfernt.
+// NEU (Phase E, Ermittler-Chat-System): submitPhoto() fuer photo_ref-Knoten
+// (multipart/form-data-Upload) ergaenzt.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 if (!API_BASE_URL) {
@@ -18,6 +20,26 @@ export function setAuthToken(token) {
 
 export function setUnauthorizedHandler(handler) {
   onUnauthorized = handler;
+}
+
+async function handleResponse(response) {
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    // leerer Body möglich
+  }
+
+  if (response.status === 401) {
+    if (onUnauthorized) onUnauthorized();
+    throw new ApiError(401, data?.error || 'Nicht authentifiziert', data);
+  }
+
+  if (!response.ok) {
+    throw new ApiError(response.status, data?.error || 'Unbekannter Fehler', data);
+  }
+
+  return data;
 }
 
 async function request(path, { method = 'GET', body, query } = {}) {
@@ -43,23 +65,30 @@ async function request(path, { method = 'GET', body, query } = {}) {
     throw new ApiError(0, 'Netzwerkfehler – bitte Verbindung prüfen.', null);
   }
 
-  let data = null;
+  return handleResponse(response);
+}
+
+// NEU (Phase E): eigener Request-Pfad fuer multipart/form-data-Uploads.
+// Bewusst KEIN 'Content-Type'-Header gesetzt -- der Browser ergaenzt
+// automatisch die korrekte multipart-Boundary.
+async function requestMultipart(path, formData) {
+  const url = new URL(API_BASE_URL + path);
+  const headers = {};
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+  let response;
   try {
-    data = await response.json();
-  } catch {
-    // leerer Body möglich
+    response = await fetch(url.toString(), {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: formData
+    });
+  } catch (networkError) {
+    throw new ApiError(0, 'Netzwerkfehler – bitte Verbindung prüfen.', null);
   }
 
-  if (response.status === 401) {
-    if (onUnauthorized) onUnauthorized();
-    throw new ApiError(401, data?.error || 'Nicht authentifiziert', data);
-  }
-
-  if (!response.ok) {
-    throw new ApiError(response.status, data?.error || 'Unbekannter Fehler', data);
-  }
-
-  return data;
+  return handleResponse(response);
 }
 
 export class ApiError extends Error {
@@ -98,5 +127,13 @@ export const api = {
   getOpenTasks: () => request('/team/open-tasks.php'),
 
   // Ermittler-Chat-System (Phase C)
-  getSuspects: () => request('/team/suspects.php')
+  getSuspects: () => request('/team/suspects.php'),
+
+  // Ermittler-Chat-System (Phase E)
+  submitPhoto: (nodeId, file) => {
+    const formData = new FormData();
+    formData.append('node_id', nodeId);
+    formData.append('photo', file);
+    return requestMultipart('/team/photos/submit.php', formData);
+  }
 };
