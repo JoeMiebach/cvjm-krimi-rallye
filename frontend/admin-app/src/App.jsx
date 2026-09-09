@@ -1,6 +1,9 @@
 // admin-app/src/App.jsx
 // NEU (09.09.2026): RallyeProvider + Dropdown im Header ersetzen die feste
 // VITE_DEFAULT_RALLYE_ID. Siehe 00_Project_Brief_Entscheidungslog_v3.md, Punkt 15.
+// ENTFERNT (09.09.2026): Route/Nav-Link "/start-codes" -- StartCodesScreen.jsx
+// wurde geloescht, seine Funktionen sind jetzt Teil von TeamsScreen.jsx.
+// Siehe 00_Project_Brief_Entscheidungslog_v3.md, Punkt 16.
 import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { RallyeProvider, useRallye } from './context/RallyeContext';
@@ -8,7 +11,6 @@ import LoginScreen from './screens/LoginScreen';
 import DashboardScreen from './screens/DashboardScreen';
 import RallyesScreen from './screens/RallyesScreen';
 import TeamsScreen from './screens/TeamsScreen';
-import StartCodesScreen from './screens/StartCodesScreen';
 import StationsEditorScreen from './screens/StationsEditorScreen';
 import PuzzlesEditorScreen from './screens/PuzzlesEditorScreen';
 import BroadcastsScreen from './screens/BroadcastsScreen';
@@ -25,9 +27,6 @@ function ProtectedRoute({ children, requireAdmin = false }) {
   return children;
 }
 
-// NEU: Rallye-Auswahl-Dropdown im Header. Ersetzt die feste
-// VITE_DEFAULT_RALLYE_ID. Bei leerer Liste (z.B. noch keine Rallye angelegt)
-// wird ein Hinweis angezeigt.
 function RallyeSelect() {
   const { rallyes, rallyeId, setRallyeId, status } = useRallye();
   if (status === 'loading') return <span className="text-sm text-ink/60">Lade Rallyes...</span>;
@@ -65,7 +64,6 @@ function AppShell({ children }) {
             <Link to="/dashboard">Dashboard</Link>
             <Link to="/rallyes">Rallyes</Link>
             <Link to="/teams">Teams</Link>
-            <Link to="/start-codes">Startcodes</Link>
             <Link to="/stations">Stationen</Link>
             <Link to="/puzzles">Rätsel</Link>
             <Link to="/broadcasts">Broadcasts</Link>
@@ -113,14 +111,6 @@ export default function App() {
         element={
           <ProtectedRoute requireAdmin>
             <AppShell><TeamsScreen /></AppShell>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/start-codes"
-        element={
-          <ProtectedRoute requireAdmin>
-            <AppShell><StartCodesScreen /></AppShell>
           </ProtectedRoute>
         }
       />

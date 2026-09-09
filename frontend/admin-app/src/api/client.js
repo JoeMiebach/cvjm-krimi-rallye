@@ -1,6 +1,10 @@
 // admin-app/src/api/client.js
 // FIX: getPuzzles() ergänzt -- fehlte bisher komplett, dadurch konnte der
 // Rätsel-Editor keine bestehenden Rätsel pro Station laden.
+// NEU (09.09.2026): getStartCodes() ergänzt -- listet benutzte und unbenutzte
+// Startcodes einer Rallye (Backend: GET /admin/start-codes.php). Wird von
+// TeamsScreen.jsx genutzt, das die Funktionen von StartCodesScreen.jsx
+// übernommen hat (siehe 00_Project_Brief_Entscheidungslog_v3.md, Punkt 16).
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -93,6 +97,8 @@ export const api = {
 
   generateStartCodes: (rallyeId, count) =>
     request('/admin/start-codes/generate.php', { method: 'POST', body: { rallye_id: rallyeId, count } }),
+  // NEU: listet benutzte und unbenutzte Startcodes einer Rallye
+  getStartCodes: (rallyeId) => request('/admin/start-codes.php', { query: { rallye_id: rallyeId } }),
 
   getTeams: (rallyeId) => request('/admin/teams.php', { query: { rallye_id: rallyeId } }),
   updateTeam: (id, payload) => request('/admin/teams.php', { method: 'PUT', query: { id }, body: payload }),
@@ -107,7 +113,6 @@ export const api = {
   unlockStationForTeam: (stationId, teamId) =>
     request('/admin/stations/unlock-for-team.php', { method: 'POST', body: { station_id: stationId, team_id: teamId } }),
 
-  // NEU: fehlte bisher komplett
   getPuzzles: (stationId) => request('/admin/puzzles.php', { query: { station_id: stationId } }),
   createPuzzle: (payload) => request('/admin/puzzles.php', { method: 'POST', body: payload }),
   updatePuzzle: (id, payload) => request('/admin/puzzles.php', { method: 'PUT', query: { id }, body: payload }),

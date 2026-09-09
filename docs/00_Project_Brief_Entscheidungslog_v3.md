@@ -3,7 +3,7 @@
 **Arbeitstitel:** Der verschwundene Viking-Schatz
 **Produkt:** Wiederverwendbare mobile Webapp fuer Krimi-Stadtrallyes auf Jugendfreizeiten
 **Projektstatus:** Implementierung laeuft (Frontend + Backend bereits groesstenteils umgesetzt)
-**Stand:** 09.09.2026 (Ergaenzung 13:02 Uhr: Rallye-Auswahl-Dropdown im Admin-UI umgesetzt)
+**Stand:** 09.09.2026 (Ergaenzung 13:31 Uhr: Startcodes in TeamsScreen integriert, StartCodesScreen entfernt)
 **Ersetzt:** 00_Project_Brief_Entscheidungslog_v2.md (bitte archivieren, z. B. als `ARCHIV_00_..._v2.md`)
 
 ---
@@ -29,7 +29,10 @@
    noch fehlten. Mit v3 des Schemas nachgezogen (siehe `03_Datenbank_Schema_MySQL_MultiRallye_v3.sql`,
    bitte `03_..._v2.sql` archivieren).
 8. **Rallye-Auswahl im Admin-UI (09.09.2026):** Die feste `VITE_DEFAULT_RALLYE_ID=1` ist durch
-   einen im Admin-UI waehlbaren Dropdown ersetzt (siehe Punkt 15 unten).
+   einen im Admin-UI waehlbaren Dropdown ersetzt (siehe Punkt 15).
+9. **Startcodes in Teams-Verwaltung integriert (09.09.2026):** Der eigenstaendige
+   `StartCodesScreen.jsx` entfaellt, seine Funktionen sind jetzt Teil von `TeamsScreen.jsx`
+   (siehe Punkt 16).
 
 ---
 
@@ -116,13 +119,20 @@
     `RallyeContext` (`frontend/admin-app/src/context/RallyeContext.jsx`) ersetzt, der alle Rallyes
     ueber `GET /admin/rallyes.php` laedt und die Auswahl in `localStorage` persistiert. Ein
     Dropdown im Header (`App.jsx`) erlaubt Admin/Beobachter den Wechsel zwischen Rallyes; alle
-    acht betroffenen Screens (`DashboardScreen`, `LeaderboardScreen`, `MapScreen`,
-    `PuzzlesEditorScreen`, `StationsEditorScreen`, `StartCodesScreen`, `TeamsScreen`,
-    `BroadcastsScreen`) lesen `rallye_id` jetzt aus `useRallye()` statt aus der Env-Variable.
-    `RallyesScreen.jsx` (Anlegen/Archivieren) bleibt unveraendert und laedt seine Liste weiterhin
-    unabhaengig -- bewusste kleine Duplikation, fuer dieses Projekt vertretbar. Die Env-Variable
-    `VITE_DEFAULT_RALLYE_ID` wird von der `admin-app` nicht mehr benoetigt und kann bei
-    Gelegenheit aus `.env`/`.env.example` entfernt werden.
+    acht betroffenen Screens lesen `rallye_id` jetzt aus `useRallye()` statt aus der Env-Variable.
+    Zusaetzlich wurde ein Deploy-Workflow-Bug behoben: `wlixcc/SFTP-Deploy-Action` matched bei
+    Wildcard-Globs (`dist/*`) keine Dotfiles, wodurch die fuer SPA-Routing noetige
+    `public/.htaccess` nie hochgeladen wurde (404 bei Reload/Direktaufruf von Unterrouten). Fix:
+    zusaetzlicher Einzeldatei-Upload-Schritt pro App in `deploy-frontend.yml`.
+16. **Startcodes in Teams-Verwaltung integriert:** Der eigenstaendige `StartCodesScreen.jsx`
+    (Route `/start-codes`) wurde geloescht. `TeamsScreen.jsx` zeigt jetzt zusaetzlich den
+    Startcode pro Team (aus `teams.start_code`, bereits Teil des bestehenden
+    `GET /admin/teams.php`-Response), eine Liste unbenutzter Startcodes sowie das
+    Generieren-Formular. Neuer Endpoint `GET /admin/start-codes.php?rallye_id=` listet alle
+    Startcodes einer Rallye (benutzt inkl. Teamname, unbenutzt). `POST
+    /admin/start-codes/generate.php` (Erzeugen neuer Codes) bleibt unveraendert bestehen.
+    Begruendung: Startcodes sind inhaltlich untrennbar mit Teams verknuepft, ein eigener
+    Navigationspunkt dafuer war ein unnoetiger Umweg fuer den Spielleiter.
 
 ## Weiterhin offen
 

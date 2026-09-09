@@ -1,7 +1,7 @@
 # API-Spezifikation: Viking-Schatz Rallye (PHP / Hosting Basic) - Version 3
 
 **Ersetzt:** 04_API_Spezifikation_PHP.md (v2.0, bitte archivieren)
-**Stand:** 09.09.2026, 12:37 Uhr (story_clue-Verhalten final geklaert und Code-abgeglichen)
+**Stand:** 09.09.2026, 13:31 Uhr (Startcodes-Endpoint ergaenzt)
 
 ## Basis-URL
 
@@ -68,9 +68,7 @@ Response (falsche Antwort, Versuche verbleiben):
 { "success": true, "is_correct": false, "attempts_remaining": 2, "message": "Falsch. Noch 2 Versuche." }
 ```
 
-Implementiert in `backend/api/puzzles/submit.php` (korrigiert 09.09.2026 -- vorherige Version
-nutzte faelschlich `stations.story_text` statt `puzzles.story_clue_text` und schrieb nicht in
-`team_story_clues`).
+Implementiert in `backend/api/puzzles/submit.php`.
 
 ### GET /team/clues.php (verifiziert 09.09.2026)
 
@@ -92,10 +90,35 @@ nach `unlocked_at` aufsteigend. Bleibt dauerhaft abrufbar, unabhaengig vom Submi
 }
 ```
 
-Implementiert in `backend/api/team/clues.php` -- Feldschema gegen echten Code verifiziert,
-keine Aenderung noetig.
+Implementiert in `backend/api/team/clues.php`.
 
-## Admin-Endpunkte / Beobachter-Endpunkte / System-Endpunkt / Fehlercodes
+## Admin-Endpunkte
+
+Grundlegende Endpunkte (`/admin/dashboard.php`, `/admin/rallyes.php`, `/admin/teams.php`,
+`/admin/stations.php`, `/admin/puzzles.php`, `/admin/broadcast.php`, `/admin/leaderboard.php`,
+`/admin/positions.php`, Spielsteuerung unter `/admin/game/*`) unveraendert aus v2 -- siehe dort
+fuer vollstaendige Tabellen.
+
+### GET /admin/start-codes.php?rallye_id= (NEU, 09.09.2026)
+
+Listet alle Startcodes einer Rallye -- benutzte (inkl. Teamname) und unbenutzte. Ersetzt den
+eigenstaendigen `StartCodesScreen.jsx`; die Anzeige ist jetzt Teil von `TeamsScreen.jsx` (siehe
+`00_Project_Brief_Entscheidungslog_v3.md`, Punkt 16).
+
+```json
+{
+  "success": true,
+  "start_codes": [
+    { "id": 27, "code": "PU9R24WG", "is_used": 1, "used_by_team_id": 4, "team_name": "Joe", "created_at": "2026-09-08T18:36:24Z" },
+    { "id": 28, "code": "NBGHJPUF", "is_used": 0, "used_by_team_id": null, "team_name": null, "created_at": "2026-09-08T18:36:24Z" }
+  ]
+}
+```
+
+Implementiert in `backend/api/admin/start-codes.php`. `POST /admin/start-codes/generate.php`
+(Erzeugen neuer Codes) bleibt unveraendert bestehen.
+
+## Beobachter-Endpunkte / System-Endpunkt / Fehlercodes
 
 Unveraendert aus v2 -- siehe dort fuer vollstaendige Tabellen.
 
