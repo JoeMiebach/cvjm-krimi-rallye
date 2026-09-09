@@ -11,9 +11,16 @@
 // ergaenzt -- eigener Upload-Pfad ueber api.submitPhoto() (multipart),
 // getrennt von onRespond (das ist fuer chat/respond.php reserviert). Bereits
 // eingereichte Fotos werden als Thumbnail statt als reiner Text angezeigt.
+// GEAENDERT (Phase F, Ermittler-Chat-System): media_type/media_url fuer
+// Audio-/Video-Clips in Chat-Knoten ergaenzt (unabhaengig vom response_type).
+// Team-Avatar im Header. Bei Netzwerkfehlern (ApiError status 0) werden
+// Antworten/Fotos ueber die Offline-Warteschlange (offline/queue.js)
+// zwischengespeichert und beim naechsten 'online'-Event automatisch erneut
+// gesendet.
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api/client';
+import { api, ApiError } from '../api/client';
+import { queueAction, flushQueue } from '../offline/queue';
 
 
 const POLL_INTERVAL_MS = 10_000;
@@ -121,6 +128,16 @@ function ChatBubble({ entry, onRespond, onSubmitPhoto, navigate }) {
       )}
 
 
+      {entry.media_type === 'audio_ref' && entry.media_url && (
+        <audio controls className="w-full" src={entry.media_url} />
+      )}
+
+
+      {entry.media_type === 'video_ref' && entry.media_url && (
+        <video controls className="max-h-64 w-full rounded-lg" src={entry.media_url} />
+      )}
+
+
       {entry.map_latitude && entry.map_longitude && (
         <button className="btn-secondary text-xs" onClick={() => navigate('/karte')}>
           📍 Auf Karte anzeigen
@@ -196,6 +213,7 @@ function ChatBubble({ entry, onRespond, onSubmitPhoto, navigate }) {
 export default function ChatScreen() {
   const [chat, setChat] = useState([]);
   const [error, setError] = useState(null);
+  const [avatarUrl, setAvatarUrl] = useState(null);
   const bottomRef = useRef(null);
   const navigate = useNavigate();
 
@@ -211,10 +229,33 @@ export default function ChatScreen() {
   }
 
 
+  async function loadAvatar() {
+    try {
+      const result = await api.getMe();
+      setAvatarUrl(result.team?.avatar_url || null);
+    } catch {
+      // Avatar ist optional -- ein Fehler hier soll den Chat nicht blockieren.
+    }
+  }
+
+
   useEffect(() => {
     loadChat();
+    loadAvatar();
     const intervalId = setInterval(loadChat, POLL_INTERVAL_MS);
     return () => clearInterval(intervalId);
+  }, []);
+
+
+  useEffect(() => {
+    function handleOnline() {
+      flushQueue({
+        respondToChat: api.respondToChat,
+        submitPhoto: api.submitPhoto
+      }).then(loadChat);
+    }
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
   }, []);
 
 
@@ -227,6 +268,12 @@ export default function ChatScreen() {
     try {
       const result = await api.respondToChat(nodeId, response);
       return result;
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 0) {
+        await queueAction({ type: 'respond', nodeId, response });
+        return null;
+      }
+      throw err;
     } finally {
       await loadChat();
     }
@@ -236,6 +283,12 @@ export default function ChatScreen() {
   async function handleSubmitPhoto(nodeId, file) {
     try {
       await api.submitPhoto(nodeId, file);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 0) {
+        await queueAction({ type: 'photo', nodeId, file });
+      } else {
+        throw err;
+      }
     } finally {
       await loadChat();
     }
@@ -245,7 +298,12 @@ export default function ChatScreen() {
   return (
     <div className="flex min-h-screen flex-col gap-3 p-4 pb-24">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-primary-700">Chat mit Freya Lindqvist</h1>
+        <div className="flex items-center gap-2">
+          {avatarUrl && (
+            <img src={avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
+          )}
+          <h1 className="text-xl font-bold text-primary-700">Chat mit Freya Lindqvist</h1>
+        </div>
         <button className="btn-secondary text-xs" onClick={() => navigate('/suspects')}>
           🕵️ Verdächtige
         </button>

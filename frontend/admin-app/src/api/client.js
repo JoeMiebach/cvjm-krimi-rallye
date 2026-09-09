@@ -1,14 +1,13 @@
 // admin-app/src/api/client.js
 // FIX: getPuzzles() ergänzt -- fehlte bisher komplett, dadurch konnte der
 // Rätsel-Editor keine bestehenden Rätsel pro Station laden.
-// NEU (09.09.2026): getStartCodes() ergänzt -- listet benutzte und unbenutzte
-// Startcodes einer Rallye (Backend: GET /admin/start-codes.php). Wird von
-// TeamsScreen.jsx genutzt, das die Funktionen von StartCodesScreen.jsx
-// übernommen hat (siehe 00_Project_Brief_Entscheidungslog_v3.md, Punkt 16).
+// NEU (09.09.2026): getStartCodes() ergänzt.
 // NEU (Phase D, Ermittler-Chat-System): CRUD für story-nodes.php,
-// story-node-options.php und suspects.php ergänzt (Admin-Content-Editor).
+// story-node-options.php und suspects.php ergänzt.
 // NEU (Phase E, Ermittler-Chat-System): getPhotoSubmissions() und
 // awardPhotoPoints() ergänzt.
+// NEU (Phase F, Ermittler-Chat-System): CRUD fuer broadcast-templates.php
+// ergaenzt.
 
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -187,5 +186,16 @@ export const api = {
     request('/admin/photo-submissions/award.php', {
       method: 'POST',
       body: { submission_id: submissionId, points }
-    })
+    }),
+
+
+  // Ermittler-Chat-System (Phase F): Broadcast-Vorlagen
+  getBroadcastTemplates: (rallyeId) =>
+    request('/admin/broadcast-templates.php', { query: { rallye_id: rallyeId } }),
+  createBroadcastTemplate: (payload) =>
+    request('/admin/broadcast-templates.php', { method: 'POST', body: payload }),
+  updateBroadcastTemplate: (id, payload) =>
+    request('/admin/broadcast-templates.php', { method: 'PUT', query: { id }, body: payload }),
+  deleteBroadcastTemplate: (id) =>
+    request('/admin/broadcast-templates.php', { method: 'DELETE', query: { id } })
 };

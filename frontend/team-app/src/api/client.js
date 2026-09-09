@@ -1,8 +1,8 @@
 // team-app/src/api/client.js
-// getChat(), respondToChat(), getOpenTasks() (Phase B), getSuspects() (Phase C)
-// ergaenzt. getClues() (altes Ermittlungsakte-System) entfernt.
-// NEU (Phase E, Ermittler-Chat-System): submitPhoto() fuer photo_ref-Knoten
-// (multipart/form-data-Upload) ergaenzt.
+// getChat(), respondToChat(), getOpenTasks() (Phase B), getSuspects() (Phase C),
+// submitPhoto() (Phase E) ergaenzt. getClues() (altes Ermittlungsakte-System)
+// entfernt.
+// NEU (Phase F, Ermittler-Chat-System): uploadAvatar() ergaenzt.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 if (!API_BASE_URL) {
@@ -135,5 +135,12 @@ export const api = {
     formData.append('node_id', nodeId);
     formData.append('photo', file);
     return requestMultipart('/team/photos/submit.php', formData);
+  },
+
+  // Ermittler-Chat-System (Phase F)
+  uploadAvatar: (file) => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    return requestMultipart('/team/avatars/upload.php', formData);
   }
 };

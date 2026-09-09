@@ -5,6 +5,8 @@
 // (ChatScreen) und "/open-tasks" (OpenTasksScreen).
 // GEAENDERT (Phase C, Ermittler-Chat-System): Route "/suspects"
 // (SuspectsScreen) ergaenzt, siehe 05_Technische_Spezifikation_Ermittler_Chat_v1.md.
+// GEAENDERT (Phase F, Ermittler-Chat-System): Route "/avatar"
+// (AvatarScreen) ergaenzt.
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { GameStatusProvider } from './context/GameStatusContext';
@@ -18,9 +20,11 @@ import BroadcastsScreen from './screens/BroadcastsScreen';
 import ChatScreen from './screens/ChatScreen';
 import OpenTasksScreen from './screens/OpenTasksScreen';
 import SuspectsScreen from './screens/SuspectsScreen';
+import AvatarScreen from './screens/AvatarScreen';
 import BroadcastBanner from './components/BroadcastBanner';
 import GeofenceStatus from './components/GeofenceStatus';
 import GameStatusBanner from './components/GameStatusBanner';
+
 
 function ProtectedRoute({ children }) {
   const { status } = useAuth();
@@ -34,6 +38,7 @@ function ProtectedRoute({ children }) {
   if (status !== 'loggedIn') return <Navigate to="/" replace />;
   return children;
 }
+
 
 export default function App() {
   return (
@@ -97,6 +102,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <SuspectsScreen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/avatar"
+            element={
+              <ProtectedRoute>
+                <AvatarScreen />
               </ProtectedRoute>
             }
           />
