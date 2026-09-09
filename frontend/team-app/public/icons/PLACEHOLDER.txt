@@ -1,0 +1,3 @@
+Hier müssen icon-192.png und icon-512.png abgelegt werden.
+Das temporäre Logo wurde separat als Bild generiert (Chat-Antwort) -
+bitte auf 192x192 und 512x512 zuschneiden/exportieren und hier speichern.

@@ -1,0 +1,11 @@
+# Schützt die Zugangsdaten-Datei und verhindert Directory-Listing.
+# Siehe 02_Technische_Spezifikation_PHP.md ("Sicherheitskonzept")
+<FilesMatch "^config\.local\.php$">
+    Require all denied
+</FilesMatch>
+
+Options -Indexes
+
+RewriteEngine On
+RewriteCond %{HTTP:Authorization} ^(.*)
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%1]
