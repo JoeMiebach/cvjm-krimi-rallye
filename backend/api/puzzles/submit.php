@@ -5,22 +5,34 @@
 // rekonstruiert nach dem Muster der anderen Team-Endpunkte -- bitte mit dem
 // tatsächlichen Original abgleichen. Der fachliche Fix ist ausschließlich
 // die neue requireGameRunning()-Zeile direkt nach requireTeamAuth().
+//
+// ERGAENZT (09.09.2026): Bei richtiger Antwort wird zusaetzlich der Story-Hinweis
+// ("Beweisstueck") der zugehoerigen Station als story_clue mitgeliefert, damit
+// das Frontend (PuzzlesScreen.jsx) sofort das "Neues Beweisstueck entdeckt!"-Popup
+// zeigen kann, statt dass der Hinweis erst beim naechsten Besuch der Ermittlungsakte
+// (GET /team/clues.php) sichtbar wird. Nutzt die bereits bestehende Spalte
+// stations.story_text -- KEINE Datenbank-Migration noetig. Siehe
+// 00_Project_Brief_Entscheidungslog_v3.md, "Weiterhin offen", Punkt 5.
 require_once __DIR__ . '/../bootstrap.php';
 requireMethod('POST');
 $team = requireTeamAuth();
 
+
 // NEU: Verhindert Rätsel-Einreichungen, während das Spiel pausiert oder noch
 // nicht gestartet ist. Muss vor jeder weiteren Logik geprüft werden.
 requireGameRunning($pdo, (int)$team['rallye_id']);
+
 
 $body = getJsonBody();
 $puzzleId = (int)($body['puzzle_id'] ?? 0);
 $answer = (string)($body['answer'] ?? '');
 $hintUsed = !empty($body['hint_used']);
 
+
 if ($puzzleId === 0 || $answer === '') {
     jsonError(400, 'puzzle_id oder answer fehlt');
 }
+
 
 $stmt = $pdo->prepare(
     "SELECT p.* FROM puzzles p
@@ -33,11 +45,13 @@ if (!$puzzle) {
     jsonError(404, 'Rätsel nicht gefunden');
 }
 
+
 $unlockStmt = $pdo->prepare("SELECT 1 FROM station_unlocks WHERE team_id = ? AND station_id = ?");
 $unlockStmt->execute([$team['id'], $puzzle['station_id']]);
 if (!$unlockStmt->fetch()) {
     jsonError(403, 'Station noch nicht freigeschaltet');
 }
+
 
 $countStmt = $pdo->prepare(
     "SELECT COUNT(*) AS cnt, MAX(is_correct) AS solved FROM team_attempts WHERE team_id = ? AND puzzle_id = ?"
@@ -45,14 +59,17 @@ $countStmt = $pdo->prepare(
 $countStmt->execute([$team['id'], $puzzleId]);
 $agg = $countStmt->fetch();
 
+
 if ((bool)$agg['solved']) {
     jsonError(409, 'Rätsel bereits gelöst');
 }
+
 
 $attemptsUsed = (int)$agg['cnt'];
 if ($attemptsUsed >= (int)$puzzle['max_attempts']) {
     jsonError(400, 'Keine weiteren Versuche möglich');
 }
+
 
 $answerStmt = $pdo->prepare(
     "SELECT 1 FROM answers WHERE puzzle_id = ? AND is_correct = 1 AND LOWER(answer_text) = LOWER(?)"
@@ -60,11 +77,13 @@ $answerStmt = $pdo->prepare(
 $answerStmt->execute([$puzzleId, $answer]);
 $isCorrect = (bool)$answerStmt->fetch();
 
+
 $attemptNumber = $attemptsUsed + 1;
 $pointsEarned = 0;
 if ($isCorrect) {
     $pointsEarned = max(0, (int)$puzzle['points'] - ($hintUsed ? (int)$puzzle['hint_penalty'] : 0));
 }
+
 
 $insert = $pdo->prepare(
     "INSERT INTO team_attempts (team_id, puzzle_id, attempt_number, submitted_answer, is_correct, points_earned, hint_used)
@@ -74,14 +93,23 @@ $insert->execute([
     $team['id'], $puzzleId, $attemptNumber, $answer, $isCorrect ? 1 : 0, $pointsEarned, $hintUsed ? 1 : 0,
 ]);
 
+
 if ($isCorrect) {
+    // NEU: Story-Hinweis der Station fuer die Ermittlungsakte mitliefern.
+    // Nutzt die bestehende Spalte stations.story_text, keine Migration noetig.
+    $clueStmt = $pdo->prepare("SELECT story_text FROM stations WHERE id = ?");
+    $clueStmt->execute([$puzzle['station_id']]);
+    $storyClue = $clueStmt->fetchColumn();
+
     jsonResponse(200, [
         'success' => true,
         'is_correct' => true,
         'points_earned' => $pointsEarned,
         'message' => 'Richtig! +' . $pointsEarned . ' Punkte',
+        'story_clue' => $storyClue !== false && $storyClue !== null ? $storyClue : null,
     ]);
 }
+
 
 $remaining = (int)$puzzle['max_attempts'] - $attemptNumber;
 if ($remaining <= 0) {
@@ -92,6 +120,7 @@ if ($remaining <= 0) {
         'message' => 'Falsch. Keine Versuche mehr übrig.',
     ]);
 }
+
 
 jsonResponse(200, [
     'success' => true,
