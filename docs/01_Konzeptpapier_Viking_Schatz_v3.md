@@ -3,7 +3,7 @@
 ## Eine interaktive Krimi-Stadtrallye fuer Jugendfreizeiten
 
 **Ersetzt:** 01_Konzeptpapier_Viking_Schatz_v2.md (v2, bitte archivieren)
-**Stand:** 09.09.2026, 14:16 Uhr
+**Stand:** 09.09.2026, 14:21 Uhr (drei offene Punkte aus 14:16 Uhr geklaert)
 **Status dieser Version:** KONZEPTIONELL -- noch NICHT implementiert. Dieses Dokument haelt den
 gemeinsam erarbeiteten Stand der Spielkonzept-Weiterentwicklung fest (Ermittler-Chat statt
 reiner Stationsliste). Backend/Datenbank/Frontend aus v2 (Rallyes, Stationen, Raetsel,
@@ -88,9 +88,11 @@ praesentiert, sondern als Nachrichten der Archaeologin, auf die das Team aktiv a
    Zusaetzlich: manche Stationen benoetigen nach Entdeckung KEINEN separaten Freischalt-Schritt
    mehr (neuer Wert `auto` bei `unlock_type`, zusaetzlich zu bestehendem `qr`/`gps`/`manual`) --
    Entdeckung und Freischaltung fallen dort zusammen.
-   **Offen:** Bei `proximity` + `auto` fallen "Auftauchen" und "Freischalten" praktisch zusammen
-   -- zu klaeren, ob das immer so sein soll oder ob es einen Fall braucht, wo eine Station bei
-   Naehe erst sichtbar, aber noch nicht offen ist (z. B. zusaetzlicher QR-Schritt vor Ort).
+   **GEKLAERT (14:21 Uhr):** Bei `discovery_mode = proximity` fallen "Auftauchen" und
+   "Freischalten" IMMER zusammen -- es gibt keinen Fall, in dem eine per Naehe entdeckte Station
+   noch einen zusaetzlichen Freischalt-Schritt braucht. `proximity` impliziert also praktisch
+   immer `unlock_type = auto`; eine gesonderte Kombination `proximity` + `qr`/`gps` ist nicht
+   vorgesehen und muss im Datenmodell nicht abgebildet werden.
 5. **Nachrichtenformat:** Teils kurze SMS-artige Haeppchen, teils ausfuehrlichere Erzaehltexte.
    Nachrichten koennen zusaetzlich zu Text auch Bilder (z. B. Fotos von Beweisstuecken) und
    Kartenpositionen (Pin, den das Team direkt auf der Karte sehen kann) enthalten.
@@ -101,7 +103,11 @@ praesentiert, sondern als Nachrichten der Archaeologin, auf die das Team aktiv a
    kleines Team).
 7. **Falsche Antworten:** Der Ermittler kommentiert eine falsche Antwort narrativ ("Das stimmt
    leider nicht..."), OHNE Punktabzug und OHNE Versuchsbegrenzung. Das Team kann beliebig oft
-   erneut antworten.
+   erneut antworten. **GEKLAERT (14:21 Uhr):** Diese Straffreiheit gilt NUR fuer chat-native
+   Antworten (Buttons/Text/Zahl direkt im Chat). Die weiterhin bestehenden Spezial-Raetsel-Screens
+   (Bild/Audio/Reihenfolge/Memory, siehe Punkt 2) behalten ihr bisheriges Punktabzugsmodell aus
+   v2 (`hint_penalty` bei Hinweis-Nutzung) unveraendert bei -- es gibt also bewusst zwei
+   unterschiedliche Regeln je nach Interaktionsart.
 8. **Verzweigungen sind umkehrbar:** Eine Nachricht mit mehreren Antwortoptionen bleibt dauerhaft
    waehlbar -- ein Team kann spaeter zu einer bereits "beantworteten" Nachricht zurueckkehren und
    eine andere Option ausloesen. Nichts ist endgueltig verloren.
@@ -118,18 +124,16 @@ praesentiert, sondern als Nachrichten der Archaeologin, auf die das Team aktiv a
     der Versuche. Kein Zeitbonus, keine Hinweis-Punktstrafe im Chat-Modell (Unterschied zum
     bisherigen `hint_penalty`-Mechanismus bei den verbleibenden Spezial-Raetseln, siehe Punkt 2).
 
-### Noch offene Punkte (Stand 09.09.2026, 14:16 Uhr)
+### Noch offene Punkte (Stand 09.09.2026, 14:21 Uhr)
 
-- Klaerung `proximity` + `auto` (siehe Punkt 4 oben): ein Fall oder zwei unterschiedliche
-  Verhalten?
-- Gilt die "kein Punktabzug/keine Versuchsgrenze"-Regel auch fuer die weiterhin bestehenden
-  Spezial-Raetsel-Screens (Bild/Audio/Reihenfolge/Memory), oder behalten diese ihr bisheriges
-  `hint_penalty`-Modell?
-- Konkrete Anzahl und Inhalte der Leads/Knoten pro Rallye (haengt an der noch offenen
-  Stationsanzahl-Entscheidung, siehe Project Brief).
+- Konkrete Anzahl und Inhalte der Leads/Knoten pro Rallye -- weiterhin UNKLAR, haengt an der
+  noch offenen Stationsanzahl-Entscheidung (siehe Project Brief, "Weiterhin offen").
 - Technischer Umsetzungsplan (Datenmodell, Endpunkte, Migration der bestehenden
   story_clue/Ermittlungsakte-Mechanik) ist bewusst noch nicht ausgearbeitet -- folgt nach
   Abschluss der Konzeptphase.
+
+(Die beiden anderen zuvor offenen Punkte -- `proximity`+`auto`-Verhalten und Punktabzugsregel
+fuer Spezial-Raetsel -- sind geklaert, siehe Punkt 4 und Punkt 7 oben.)
 
 ---
 
