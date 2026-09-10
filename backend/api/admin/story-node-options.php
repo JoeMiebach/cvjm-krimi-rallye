@@ -1,92 +1,45 @@
 <?php
-// GET/POST/PUT/DELETE /api/admin/story-node-options.php
-// siehe 05_Technische_Spezifikation_Ermittler_Chat_v1.md ("Admin-Endpunkte")
-// Phase A: CRUD fuer Antwortoptionen eines Chat-Knotens. Bei
-// response_type='none' (Info-/Verzweigungsknoten) repraesentieren die Optionen KEINE
-// sichtbaren Buttons, sondern die automatisch kaskadierenden Folge-Knoten
-// (siehe lib/story.php, deliverNode()).
-// GEAENDERT (10.09.2026): unlocks_station_id in POST/PUT-Feld-Whitelist aufgenommen.
-// Die Spalte existiert seit Migration 004_lead_only_station_unlock.sql und wird von
-// team/chat/respond.php bereits ausgewertet (schaltet bei korrekter Antwort eine
-// discovery_mode='lead_only'-Station frei) -- dieser Endpunkt wurde nach Einfuehrung
-// der Spalte aber nie aktualisiert, wodurch der Wert vom Admin-Editor aus nie
-// gespeichert werden konnte.
 require_once __DIR__ . '/../bootstrap.php';
 requireMethods(['GET', 'POST', 'PUT', 'DELETE']);
-
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     requireAdminOrViewerAuth();
     $nodeId = (int)($_GET['node_id'] ?? 0);
-    if ($nodeId === 0) {
-        jsonError(400, 'node_id fehlt');
-    }
+    if ($nodeId === 0) { jsonError(400, 'node_id fehlt'); }
     $stmt = $pdo->prepare("SELECT * FROM story_node_options WHERE node_id = ? ORDER BY id");
     $stmt->execute([$nodeId]);
     jsonResponse(200, ['success' => true, 'options' => $stmt->fetchAll()]);
 }
-
 $admin = requireAdminAuth();
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $body = getJsonBody();
     requireFields($body, ['node_id', 'label']);
-    $stmt = $pdo->prepare(
-        "INSERT INTO story_node_options
-         (node_id, label, correct_value, leads_to_node_id, blocks_alternate_node_id, unlocks_suspect_id, unlocks_station_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?)"
-    );
-    $stmt->execute([
-        (int)$body['node_id'],
-        $body['label'],
-        $body['correct_value'] ?? null,
-        $body['leads_to_node_id'] ?? null,
-        $body['blocks_alternate_node_id'] ?? null,
-        $body['unlocks_suspect_id'] ?? null,
-        $body['unlocks_station_id'] ?? null,
-    ]);
+    $stmt = $pdo->prepare("INSERT INTO story_node_options (node_id, label, correct_value, leads_to_node_id, blocks_alternate_node_id, unlocks_suspect_id, unlocks_station_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    $stmt->execute([(int)$body['node_id'], $body['label'], $body['correct_value'] ?? null, $body['leads_to_node_id'] ?? null, $body['blocks_alternate_node_id'] ?? null, $body['unlocks_suspect_id'] ?? null, $body['unlocks_station_id'] ?? null]);
     $id = (int)$pdo->lastInsertId();
     logAdminAction($pdo, (int)$admin['id'], null, 'story_node_option_created', $body);
     jsonResponse(201, ['success' => true, 'id' => $id]);
 }
-
 if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
     $id = (int)($_GET['id'] ?? 0);
-    if ($id === 0) {
-        jsonError(400, 'id fehlt');
-    }
+    if ($id === 0) { jsonError(400, 'id fehlt'); }
     $body = getJsonBody();
     $fields = ['label', 'correct_value', 'leads_to_node_id', 'blocks_alternate_node_id', 'unlocks_suspect_id', 'unlocks_station_id'];
-    $sets = [];
-    $params = [];
-    foreach ($fields as $f) {
-        if (array_key_exists($f, $body)) {
-            $sets[] = "$f = ?";
-            $params[] = $body[$f];
-        }
-    }
-    if (empty($sets)) {
-        jsonError(400, 'Keine Felder zum Aktualisieren übergeben');
-    }
+    $sets = []; $params = [];
+    foreach ($fields as $f) { if (array_key_exists($f, $body)) { $sets[] = "$f = ?"; $params[] = $body[$f]; } }
+    if (empty($sets)) { jsonError(400, 'Keine Felder zum Aktualisieren uebergeben'); }
     $params[] = $id;
     $stmt = $pdo->prepare("UPDATE story_node_options SET " . implode(', ', $sets) . " WHERE id = ?");
     $stmt->execute($params);
-    if ($stmt->rowCount() === 0) {
-        jsonError(404, 'Option nicht gefunden');
-    }
+    if ($stmt->rowCount() === 0) { jsonError(404, 'Option nicht gefunden'); }
     logAdminAction($pdo, (int)$admin['id'], null, 'story_node_option_updated', ['id' => $id] + $body);
     jsonResponse(200, ['success' => true]);
 }
-
 if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
     $id = (int)($_GET['id'] ?? 0);
-    if ($id === 0) {
-        jsonError(400, 'id fehlt');
-    }
+    if ($id === 0) { jsonError(400, 'id fehlt'); }
     $stmt = $pdo->prepare("DELETE FROM story_node_options WHERE id = ?");
     $stmt->execute([$id]);
-    if ($stmt->rowCount() === 0) {
-        jsonError(404, 'Option nicht gefunden');
-    }
+    if ($stmt->rowCount() === 0) { jsonError(404, 'Option nicht gefunden'); }
     logAdminAction($pdo, (int)$admin['id'], null, 'story_node_option_deleted', ['id' => $id]);
     jsonResponse(200, ['success' => true]);
 }
