@@ -1,10 +1,16 @@
 <?php
 // GET/POST/PUT/DELETE /api/admin/story-node-options.php
 // siehe 05_Technische_Spezifikation_Ermittler_Chat_v1.md ("Admin-Endpunkte")
-// NEU (Phase A): CRUD fuer Antwortoptionen eines Chat-Knotens. Bei
-// response_type='none' (Info-Knoten) repraesentieren die Optionen KEINE
+// Phase A: CRUD fuer Antwortoptionen eines Chat-Knotens. Bei
+// response_type='none' (Info-/Verzweigungsknoten) repraesentieren die Optionen KEINE
 // sichtbaren Buttons, sondern die automatisch kaskadierenden Folge-Knoten
 // (siehe lib/story.php, deliverNode()).
+// GEAENDERT (10.09.2026): unlocks_station_id in POST/PUT-Feld-Whitelist aufgenommen.
+// Die Spalte existiert seit Migration 004_lead_only_station_unlock.sql und wird von
+// team/chat/respond.php bereits ausgewertet (schaltet bei korrekter Antwort eine
+// discovery_mode='lead_only'-Station frei) -- dieser Endpunkt wurde nach Einfuehrung
+// der Spalte aber nie aktualisiert, wodurch der Wert vom Admin-Editor aus nie
+// gespeichert werden konnte.
 require_once __DIR__ . '/../bootstrap.php';
 requireMethods(['GET', 'POST', 'PUT', 'DELETE']);
 
@@ -26,8 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireFields($body, ['node_id', 'label']);
     $stmt = $pdo->prepare(
         "INSERT INTO story_node_options
-         (node_id, label, correct_value, leads_to_node_id, blocks_alternate_node_id, unlocks_suspect_id)
-         VALUES (?, ?, ?, ?, ?, ?)"
+         (node_id, label, correct_value, leads_to_node_id, blocks_alternate_node_id, unlocks_suspect_id, unlocks_station_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
     );
     $stmt->execute([
         (int)$body['node_id'],
@@ -36,6 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $body['leads_to_node_id'] ?? null,
         $body['blocks_alternate_node_id'] ?? null,
         $body['unlocks_suspect_id'] ?? null,
+        $body['unlocks_station_id'] ?? null,
     ]);
     $id = (int)$pdo->lastInsertId();
     logAdminAction($pdo, (int)$admin['id'], null, 'story_node_option_created', $body);
@@ -48,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         jsonError(400, 'id fehlt');
     }
     $body = getJsonBody();
-    $fields = ['label', 'correct_value', 'leads_to_node_id', 'blocks_alternate_node_id', 'unlocks_suspect_id'];
+    $fields = ['label', 'correct_value', 'leads_to_node_id', 'blocks_alternate_node_id', 'unlocks_suspect_id', 'unlocks_station_id'];
     $sets = [];
     $params = [];
     foreach ($fields as $f) {

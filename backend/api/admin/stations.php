@@ -1,7 +1,16 @@
 <?php
 // GET/POST/PUT/DELETE /api/admin/stations.php - siehe 04_API_Spezifikation_PHP.md ("Admin-Endpunkte")
+// GEAENDERT (10.09.2026): discovery_mode in POST/PUT-Feld-Whitelist aufgenommen --
+// fehlte bisher komplett, wodurch der Wert aus dem Admin-Editor nie in der DB
+// ankam (unabhaengig vom separaten Naming-Bug 'leadonly' vs. 'lead_only', der
+// bereits im Frontend behoben wurde). Zusaetzlich: unlock_type-Validierung um
+// 'auto' ergaenzt (Schema erlaubt seit Phase A vier Werte, POST validierte
+// bisher nur drei -- 'auto' konnte serverseitig nie angelegt werden).
 require_once __DIR__ . '/../bootstrap.php';
 requireMethods(['GET', 'POST', 'PUT', 'DELETE']);
+
+$validUnlockTypes = ['qr', 'gps', 'manual', 'auto'];
+$validDiscoveryModes = ['lead_only', 'proximity', 'both'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     requireAdminOrViewerAuth();
@@ -19,13 +28,16 @@ $admin = requireAdminAuth();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $body = getJsonBody();
     requireFields($body, ['rallye_id', 'title', 'unlock_type']);
-    if (!in_array($body['unlock_type'], ['qr', 'gps', 'manual'], true)) {
+    if (!in_array($body['unlock_type'], $validUnlockTypes, true)) {
         jsonError(400, 'Ungültiger unlock_type');
+    }
+    if (isset($body['discovery_mode']) && !in_array($body['discovery_mode'], $validDiscoveryModes, true)) {
+        jsonError(400, 'Ungültiger discovery_mode');
     }
     $stmt = $pdo->prepare(
         "INSERT INTO stations (rallye_id, title, description, story_text, qr_code, latitude, longitude,
-            geofence_radius_meters, unlock_type, order_index, points, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            geofence_radius_meters, unlock_type, discovery_mode, order_index, points, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     $stmt->execute([
         (int)$body['rallye_id'],
@@ -37,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $body['longitude'] ?? null,
         (int)($body['geofence_radius_meters'] ?? 50),
         $body['unlock_type'],
+        $body['discovery_mode'] ?? 'lead_only',
         (int)($body['order_index'] ?? 0),
         (int)($body['points'] ?? 10),
         (int)($body['is_active'] ?? 1),
@@ -52,11 +65,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         jsonError(400, 'id fehlt');
     }
 
-    // Existenz separat prüfen, statt sich auf rowCount() des UPDATE zu
-    // verlassen: rowCount() zählt bei UPDATE nur TATSÄCHLICH GEÄNDERTE
-    // Zeilen. Ohne diesen Fix würde ein Update, das dieselben Werte wie
-    // vorher speichert, fälschlich einen 404 auslösen -- exakt derselbe Bug,
-    // den wir schon bei admin/puzzles.php gefixt haben.
     $exists = $pdo->prepare("SELECT id FROM stations WHERE id = ?");
     $exists->execute([$id]);
     if (!$exists->fetch()) {
@@ -64,8 +72,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
     }
 
     $body = getJsonBody();
+    if (isset($body['unlock_type']) && !in_array($body['unlock_type'], $validUnlockTypes, true)) {
+        jsonError(400, 'Ungültiger unlock_type');
+    }
+    if (isset($body['discovery_mode']) && !in_array($body['discovery_mode'], $validDiscoveryModes, true)) {
+        jsonError(400, 'Ungültiger discovery_mode');
+    }
+
     $fields = ['title', 'description', 'story_text', 'qr_code', 'latitude', 'longitude',
-        'geofence_radius_meters', 'unlock_type', 'order_index', 'points', 'is_active'];
+        'geofence_radius_meters', 'unlock_type', 'discovery_mode', 'order_index', 'points', 'is_active'];
     $sets = [];
     $params = [];
     foreach ($fields as $f) {

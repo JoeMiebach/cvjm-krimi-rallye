@@ -1,9 +1,18 @@
 <?php
 // GET/POST/PUT/DELETE /api/admin/story-nodes.php
 // siehe 05_Technische_Spezifikation_Ermittler_Chat_v1.md ("Admin-Endpunkte")
-// NEU (Phase A): CRUD fuer Ermittler-Chat-Knoten.
+// Phase A: CRUD fuer Ermittler-Chat-Knoten.
+// GEAENDERT (10.09.2026): media_type/media_url in POST/PUT-Feld-Whitelist
+// aufgenommen. Die Spalten existieren seit Migration
+// 003_ermittler_chat_phase_f.sql und der Admin-Editor
+// (StoryNodesEditorScreen.jsx) sendet sie seit dem 09.09.2026-Bugfix bereits
+// im Payload -- dieser Endpunkt wurde aber nie aktualisiert, wodurch jeder
+// Speichervorgang mit Audio-/Video-/Bild-Medium bisher stillschweigend ins
+// Leere lief (kein Fehler, aber auch kein gespeicherter Wert).
 require_once __DIR__ . '/../bootstrap.php';
 requireMethods(['GET', 'POST', 'PUT', 'DELETE']);
+
+$validMediaTypes = ['none', 'audio_ref', 'video_ref'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     requireAdminOrViewerAuth();
@@ -21,18 +30,23 @@ $admin = requireAdminAuth();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $body = getJsonBody();
     requireFields($body, ['rallye_id', 'type', 'message_text', 'response_type']);
+    if (isset($body['media_type']) && !in_array($body['media_type'], $validMediaTypes, true)) {
+        jsonError(400, 'Ungültiger media_type');
+    }
     $stmt = $pdo->prepare(
         "INSERT INTO story_nodes
-         (rallye_id, type, message_text, image_url, map_latitude, map_longitude, response_type,
-          station_id, puzzle_id, reveals_suspect_id, points, is_root, related_node_id,
+         (rallye_id, type, message_text, image_url, media_type, media_url, map_latitude, map_longitude,
+          response_type, station_id, puzzle_id, reveals_suspect_id, points, is_root, related_node_id,
           proactive_trigger, proactive_after_minutes, proactive_after_attempts)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     $stmt->execute([
         (int)$body['rallye_id'],
         $body['type'],
         $body['message_text'],
         $body['image_url'] ?? null,
+        $body['media_type'] ?? 'none',
+        $body['media_url'] ?? null,
         $body['map_latitude'] ?? null,
         $body['map_longitude'] ?? null,
         $body['response_type'],
@@ -57,9 +71,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         jsonError(400, 'id fehlt');
     }
     $body = getJsonBody();
+    if (isset($body['media_type']) && !in_array($body['media_type'], $validMediaTypes, true)) {
+        jsonError(400, 'Ungültiger media_type');
+    }
     $fields = [
-        'type', 'message_text', 'image_url', 'map_latitude', 'map_longitude', 'response_type',
-        'station_id', 'puzzle_id', 'reveals_suspect_id', 'points', 'is_root', 'related_node_id',
+        'type', 'message_text', 'image_url', 'media_type', 'media_url', 'map_latitude', 'map_longitude',
+        'response_type', 'station_id', 'puzzle_id', 'reveals_suspect_id', 'points', 'is_root', 'related_node_id',
         'proactive_trigger', 'proactive_after_minutes', 'proactive_after_attempts', 'is_active',
     ];
     $sets = [];
