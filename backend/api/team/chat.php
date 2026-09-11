@@ -3,6 +3,7 @@
 // GEAENDERT (11.09.2026, 00-Bug-Fix): Optionen werden nur bei response_type='buttons'
 // geladen, nicht bei text/number/puzzle_ref/photo_ref. Sonst rendert das Frontend
 // fä¿½lschlicherweise die Options-ID (z.B. "00") statt nur das Eingabeformular.
+// HOTFIX (11.09.2026, 03:40): Robustere Options-Abfrage mit explizitem ORDER BY.
 require_once __DIR__ . '/../../bootstrap.php';
 requireMethod('GET');
 $team = requireTeamAuth();
@@ -29,10 +30,13 @@ foreach ($chat as &$entry) {
             "SELECT id, label, unlocks_station_id, leads_to_node_id, unlocks_suspect_id
              FROM story_node_options
              WHERE node_id = ?
-             ORDER BY sort_order ASC, id ASC"
+             ORDER BY id ASC"
         );
         $optStmt->execute([$entry['node_id']]);
-        $options = $optStmt->fetchAll();
+        $optRows = $optStmt->fetchAll();
+        if ($optRows) {
+            $options = $optRows;
+        }
     }
     $result[] = [
         'node_id' => (int)$entry['node_id'],
