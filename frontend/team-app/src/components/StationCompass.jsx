@@ -1,5 +1,5 @@
 // team-app/src/components/StationCompass.jsx
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useGeofence } from '../context/GeofenceContext';
 
 function toRad(deg) { return (deg * Math.PI) / 180; }
@@ -28,10 +28,20 @@ function formatDistance(meters) {
   return `${Math.round(meters)} m`;
 }
 
+function smoothHeading(newHeading, prevHeadingsRef, windowSize = 3) {
+  const history = prevHeadingsRef.current;
+  history.push(newHeading);
+  if (history.length > windowSize) history.shift();
+  const sum = history.reduce((a, b) => a + b, 0);
+  return sum / history.length;
+}
+
 export default function StationCompass({ station }) {
   const { lastPosition, permissionState } = useGeofence();
   const [heading, setHeading] = useState(null);
   const [needsCompassPermission, setNeedsCompassPermission] = useState(false);
+  const prevHeadingsRef = useRef([]);
+  const lastValidHeadingRef = useRef(null);
 
   useEffect(() => {
     function handleOrientation(event) {
@@ -41,7 +51,15 @@ export default function StationCompass({ station }) {
       } else if (event.alpha !== null && event.absolute) {
         compassHeading = (360 - event.alpha) % 360;
       }
-      if (compassHeading !== null) setHeading(compassHeading);
+
+      if (compassHeading !== null) {
+        lastValidHeadingRef.current = compassHeading;
+        const smoothed = smoothHeading(compassHeading, prevHeadingsRef);
+        setHeading(smoothed);
+      } else if (lastValidHeadingRef.current !== null) {
+        const smoothed = smoothHeading(lastValidHeadingRef.current, prevHeadingsRef);
+        setHeading(smoothed);
+      }
     }
 
     const needsPermission =
@@ -68,7 +86,8 @@ export default function StationCompass({ station }) {
         setNeedsCompassPermission(false);
         window.addEventListener('deviceorientation', (event) => {
           if (typeof event.webkitCompassHeading === 'number') {
-            setHeading(event.webkitCompassHeading);
+            const smoothed = smoothHeading(event.webkitCompassHeading, prevHeadingsRef);
+            setHeading(smoothed);
           }
         }, true);
       }
