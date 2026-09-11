@@ -4,14 +4,17 @@ import { useParams, Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useGameStatus } from '../context/GameStatusContext';
+import { useGeofence } from '../context/GeofenceContext';
 import BottomNav from '../components/BottomNav';
 import QrScanner from '../components/QrScanner';
 import StationCompass from '../components/StationCompass';
+
 
 export default function PuzzlesScreen() {
   const { id } = useParams();
   const { rallyeId } = useAuth();
   const { canAct } = useGameStatus();
+  const { setOnStationUnlocked } = useGeofence();
   const [station, setStation] = useState(null);
   const [stationLoading, setStationLoading] = useState(true);
   const [puzzles, setPuzzles] = useState([]);
@@ -23,6 +26,7 @@ export default function PuzzlesScreen() {
   const [unlockStatus, setUnlockStatus] = useState(null);
   const [unlocking, setUnlocking] = useState(false);
 
+
   const loadStation = useCallback(async () => {
     if (!rallyeId) return null;
     const result = await api.getStations(rallyeId);
@@ -31,6 +35,7 @@ export default function PuzzlesScreen() {
     setStationLoading(false);
     return found;
   }, [rallyeId, id]);
+
 
   const loadPuzzles = useCallback(async () => {
     try {
@@ -41,12 +46,29 @@ export default function PuzzlesScreen() {
     }
   }, [id]);
 
+
   useEffect(() => {
     (async () => {
       const found = await loadStation();
       if (found && found.status === 'unlocked') await loadPuzzles();
     })();
   }, [loadStation, loadPuzzles]);
+
+
+  // Callback registrieren: Bei Freischaltung dieser Station neu laden
+  useEffect(() => {
+    setOnStationUnlocked((unlockedIds) => {
+      if (unlockedIds.includes(Number(id))) {
+        console.log('[PuzzlesScreen] Station wurde freigeschaltet, lade neu...');
+        setStationLoading(true);
+        (async () => {
+          const found = await loadStation();
+          if (found && found.status === 'unlocked') await loadPuzzles();
+        })();
+      }
+    });
+  }, [id, loadStation, loadPuzzles, setOnStationUnlocked]);
+
 
   async function handleScanSuccess(decodedText) {
     setScannerActive(false);
@@ -63,6 +85,7 @@ export default function PuzzlesScreen() {
     }
   }
 
+
   async function handleSubmit(puzzleId, providedAnswer) {
     if (!canAct) return;
     const answer = providedAnswer !== undefined ? providedAnswer : answers[puzzleId] || '';
@@ -78,6 +101,7 @@ export default function PuzzlesScreen() {
     }
   }
 
+
   async function handleHint(puzzleId) {
     if (!canAct) return;
     try {
@@ -90,6 +114,7 @@ export default function PuzzlesScreen() {
     }
   }
 
+
   function renderAnswerInput(puzzle) {
     if (puzzle.type === 'multiple_choice') {
       const options = puzzle.options || [];
@@ -99,6 +124,7 @@ export default function PuzzlesScreen() {
     return <input type={puzzle.type === 'number' ? 'number' : 'text'} className="input-field disabled:cursor-not-allowed disabled:opacity-50" placeholder={puzzle.type === 'number' ? 'Zahl eingeben' : 'Antwort eingeben'} disabled={!canAct} onChange={(e) => setAnswers((prev) => ({ ...prev, [puzzle.id]: e.target.value }))} />;
   }
 
+
   function renderMedia(puzzle) {
     if (!puzzle.media_url) return null;
     if (puzzle.type === 'image') return <img src={puzzle.media_url} alt="Raetselbild" className="mb-2 max-h-64 w-full rounded-lg object-cover" />;
@@ -107,10 +133,13 @@ export default function PuzzlesScreen() {
     return null;
   }
 
+
   if (stationLoading) return <div className="min-h-screen bg-surface px-4 pb-24 pt-16"><p className="text-ink/60">Lade Station...</p><BottomNav /></div>;
   if (!station) return <div className="min-h-screen bg-surface px-4 pb-24 pt-16"><p className="card text-red-700">Station nicht gefunden.</p><Link to="/stations" className="mt-4 inline-block text-primary-700 underline">Zurueck zur Uebersicht</Link><BottomNav /></div>;
 
+
   const isUnlocked = station.status === 'unlocked';
+
 
   return (
     <div className="min-h-screen bg-surface px-4 pb-24 pt-16">
@@ -125,7 +154,7 @@ export default function PuzzlesScreen() {
           {unlocking && <p className="text-center text-ink/60">Pruefe Code...</p>}
           {unlockStatus && <p className="text-center text-sm text-ink/70">{unlockStatus}</p>}
         </>}
-        {station.status === 'discovered' && station.unlock_type === 'gps' && <StationCompass station={station} />}
+        {station.status === 'discovered' && station.unlock_type === 'gps' && <StationCompass station={station} onUnlock={() => { setStationLoading(true); (async () => { const found = await loadStation(); if (found && found.status === 'unlocked') await loadPuzzles(); })(); }} />}
         {station.status === 'discovered' && (station.unlock_type === 'manual' || station.unlock_type === 'auto') && <p className="text-sm text-ink/70">Diese Station wird vom Spielleiter freigeschaltet. Meldet euch vor Ort, falls sie noch verschlossen ist.</p>}
       </div>}
       {isUnlocked && <>

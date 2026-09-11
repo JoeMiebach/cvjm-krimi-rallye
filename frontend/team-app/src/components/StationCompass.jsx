@@ -1,9 +1,11 @@
 // team-app/src/components/StationCompass.jsx
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useGeofence } from '../context/GeofenceContext';
+
 
 function toRad(deg) { return (deg * Math.PI) / 180; }
 function toDeg(rad) { return (rad * 180) / Math.PI; }
+
 
 function haversineDistanceMeters(lat1, lon1, lat2, lon2) {
   const R = 6371000;
@@ -15,6 +17,7 @@ function haversineDistanceMeters(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+
 function bearingDegrees(lat1, lon1, lat2, lon2) {
   const y = Math.sin(toRad(lon2 - lon1)) * Math.cos(toRad(lat2));
   const x =
@@ -23,10 +26,12 @@ function bearingDegrees(lat1, lon1, lat2, lon2) {
   return (toDeg(Math.atan2(y, x)) + 360) % 360;
 }
 
+
 function formatDistance(meters) {
   if (meters >= 1000) return `${(meters / 1000).toFixed(2)} km`;
   return `${Math.round(meters)} m`;
 }
+
 
 function smoothHeading(newHeading, prevHeadingsRef, windowSize = 3) {
   const history = prevHeadingsRef.current;
@@ -35,6 +40,7 @@ function smoothHeading(newHeading, prevHeadingsRef, windowSize = 3) {
   const sum = history.reduce((a, b) => a + b, 0);
   return sum / history.length;
 }
+
 
 // Berechnet den kuerzesten Rotationsweg zwischen zwei Winkeln.
 // Gibt einen Wert im Bereich [-180, 180] zurueck, der angibt,
@@ -48,13 +54,16 @@ function shortestAngleDiff(from, to) {
   return diff;
 }
 
-export default function StationCompass({ station }) {
+
+export default function StationCompass({ station, onUnlock }) {
   const { lastPosition, permissionState } = useGeofence();
   const [heading, setHeading] = useState(null);
   const [needsCompassPermission, setNeedsCompassPermission] = useState(false);
   const prevHeadingsRef = useRef([]);
   const lastValidHeadingRef = useRef(null);
   const prevArrowRotationRef = useRef(0);
+  const unlockCalledRef = useRef(false);
+
 
   useEffect(() => {
     function handleOrientation(event) {
@@ -64,6 +73,7 @@ export default function StationCompass({ station }) {
       } else if (event.alpha !== null && event.absolute) {
         compassHeading = (360 - event.alpha) % 360;
       }
+
 
       if (compassHeading !== null) {
         lastValidHeadingRef.current = compassHeading;
@@ -75,9 +85,11 @@ export default function StationCompass({ station }) {
       }
     }
 
+
     const needsPermission =
       typeof DeviceOrientationEvent !== 'undefined' &&
       typeof DeviceOrientationEvent.requestPermission === 'function';
+
 
     if (needsPermission) {
       setNeedsCompassPermission(true);
@@ -86,11 +98,13 @@ export default function StationCompass({ station }) {
       window.addEventListener('deviceorientation', handleOrientation, true);
     }
 
+
     return () => {
       window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
       window.removeEventListener('deviceorientation', handleOrientation, true);
     };
   }, []);
+
 
   async function requestCompassPermission() {
     try {
@@ -109,13 +123,16 @@ export default function StationCompass({ station }) {
     }
   }
 
+
   if (permissionState === 'denied') {
     return <p className="text-sm text-red-700">Standortzugriff wurde verweigert. Bitte in den Handy-Einstellungen erlauben.</p>;
   }
 
+
   if (!lastPosition || !station.latitude || !station.longitude) {
     return <p className="text-sm text-ink/60">Standort wird ermittelt...</p>;
   }
+
 
   const distance = haversineDistanceMeters(lastPosition.latitude, lastPosition.longitude, Number(station.latitude), Number(station.longitude));
   const targetBearing = bearingDegrees(lastPosition.latitude, lastPosition.longitude, Number(station.latitude), Number(station.longitude));
@@ -129,7 +146,18 @@ export default function StationCompass({ station }) {
   const arrowRotation = prevArrowRotationRef.current + angleDiff;
   prevArrowRotationRef.current = arrowRotation;
 
+
   const withinRadius = station.geofence_radius_meters && distance <= Number(station.geofence_radius_meters);
+
+  // Callback aufrufen wenn innerhalb des Radius (nur einmal)
+  useEffect(() => {
+    if (withinRadius && !unlockCalledRef.current && onUnlock) {
+      unlockCalledRef.current = true;
+      // Kurz warten damit Backend die Freischaltung verarbeitet hat
+      setTimeout(() => onUnlock(), 1500);
+    }
+  }, [withinRadius, onUnlock]);
+
 
   return (
     <div className="flex flex-col items-center gap-2 py-2">
