@@ -6,6 +6,7 @@ require_once __DIR__ . '/../bootstrap.php';
 requireMethod('POST');
 $team = requireTeamAuth();
 
+
 $body = getJsonBody();
 $lat = isset($body['latitude']) ? (float)$body['latitude'] : null;
 $lon = isset($body['longitude']) ? (float)$body['longitude'] : null;
@@ -19,6 +20,7 @@ if ($lat === null || $lon === null || $lat < -90 || $lat > 90 || $lon < -180 || 
     jsonError(400, 'Ungueltige GPS-Koordinaten');
 }
 
+
 error_log(sprintf(
     '[GEOFENCE] Team %d: Position empfangen: lat=%.6f, lon=%.6f',
     $team['id'],
@@ -26,9 +28,11 @@ error_log(sprintf(
     $lon
 ));
 
+
 $pdo->prepare(
     'UPDATE teams SET current_latitude = ?, current_longitude = ?, last_position_update = NOW() WHERE id = ?'
 )->execute([$lat, $lon, $team['id']]);
+
 
 $gameStmt = $pdo->prepare('SELECT is_game_running FROM rallyes WHERE id = ?');
 $gameStmt->execute([$team['rallye_id']]);
@@ -37,6 +41,7 @@ if (!$rallye || !(bool)$rallye['is_game_running']) {
     jsonResponse(200, ['success' => true, 'newly_unlocked_stations' => []]);
 }
 
+
 $stmt = $pdo->prepare(
     "SELECT id, title, latitude, longitude, geofence_radius_meters
      FROM stations
@@ -44,6 +49,7 @@ $stmt = $pdo->prepare(
 );
 $stmt->execute([$team['rallye_id']]);
 $stations = $stmt->fetchAll();
+
 
 $newlyUnlocked = [];
 foreach ($stations as $station) {
@@ -57,9 +63,14 @@ foreach ($stations as $station) {
         $station['geofence_radius_meters']
     ));
 
+
     if ($distance <= (float)$station['geofence_radius_meters']) {
         $insert = $pdo->prepare(
-            "INSERT IGNORE INTO station_unlocks (team_id, station_id, unlock_source) VALUES (?, ?, 'gps')"
+            "INSERT INTO station_unlocks (team_id, station_id, unlock_source, unlocked_at)
+             VALUES (?, ?, 'gps', NOW())
+             ON DUPLICATE KEY UPDATE
+                 unlock_source = COALESCE(unlock_source, 'gps'),
+                 unlocked_at = COALESCE(unlocked_at, NOW())"
         );
         $insert->execute([$team['id'], $station['id']]);
         if ($insert->rowCount() > 0) {
@@ -73,6 +84,7 @@ foreach ($stations as $station) {
         }
     }
 }
+
 
 jsonResponse(200, [
     'success' => true,
