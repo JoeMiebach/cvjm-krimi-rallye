@@ -2,16 +2,10 @@
 // POST /api/puzzles/submit.php
 //
 // FIX (11.09.2026): Nach korrekter Puzzle-Antwort wird jetzt der nächste
-// Chat-Knoten ausgel\u00f6st (deliverNode), damit das Spiel nach dem L\u00f6sen eines
+// Chat-Knoten ausgelö¬½¬st (deliverNode), damit das Spiel nach dem Lösen eines
 // Puzzles im Chat weitergeht. Vorher war submit.php ein separater Pfad ohne
 // Chat-Progression, wodurch Teams nach dem ersten Puzzle "stuck" waren.
-//
-// Logik:
-// 1. Puzzle l\u00f6sen wie bisher (team_attempts, Punkte, story_clue)
-// 2. Story_Node finden, das dieses Puzzle referenziert (response_type='puzzle_ref')
-// 3. Nächsten Knoten aus story_node_options ermitteln (leads_to_node_id)
-// 4. deliverNode() aufrufen, um den Folge-Knoten zuzustellen
-// 5. Im Response 'next_node_id' zurückgeben (Frontend kann direkt zum Chat springen)
+// FIX (11.09.2026, 12:52): is_solved-Feld im Response für Frontend
 
 require_once __DIR__ . '/../bootstrap.php';
 requireMethod('POST');
@@ -35,7 +29,7 @@ $stmt = $pdo->prepare(
 $stmt->execute([$puzzleId, $team['rallye_id']]);
 $puzzle = $stmt->fetch();
 if (!$puzzle) {
-    jsonError(404, 'R\u00e4tsel nicht gefunden');
+    jsonError(404, 'Rä¬½tsel nicht gefunden');
 }
 
 $unlockStmt = $pdo->prepare("SELECT 1 FROM station_unlocks WHERE team_id = ? AND station_id = ?");
@@ -51,12 +45,12 @@ $countStmt->execute([$team['id'], $puzzleId]);
 $agg = $countStmt->fetch();
 
 if ((bool)$agg['solved']) {
-    jsonError(409, 'R\u00e4tsel bereits gel\u00f6st');
+    jsonError(409, 'Rä¬½tsel bereits gelö‚Ä¢st');
 }
 
 $attemptsUsed = (int)$agg['cnt'];
 if ($attemptsUsed >= (int)$puzzle['max_attempts']) {
-    jsonError(400, 'Keine weiteren Versuche m\u00f6glich');
+    jsonError(400, 'Keine weiteren Versuche mö‚Ä¢glich');
 }
 
 $answerStmt = $pdo->prepare(
@@ -126,10 +120,11 @@ if ($isCorrect) {
     jsonResponse(200, [
         'success' => true,
         'is_correct' => true,
+        'is_solved' => true,
         'points_earned' => $pointsEarned,
         'message' => 'Richtig! +' . $pointsEarned . ' Punkte',
         'story_clue' => ($storyClue !== null && $storyClue !== '') ? $storyClue : null,
-        'next_node_id' => $nextNodeId, // Frontend kann damit direkt zum Chat springen
+        'next_node_id' => $nextNodeId,
     ]);
 }
 
