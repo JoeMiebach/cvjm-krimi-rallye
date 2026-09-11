@@ -3,6 +3,14 @@
 -- Ziel: Komplette Datenbank leeren und Rallye neu aufsetzen
 --
 -- ACHTUNG: Dieses Skript loscht ALLE bestehenden Rallye-Daten!
+--
+-- Standorte (real):
+-- - Kriegerdenkmal: 51.004009, 7.454024
+-- - Kirche: 51.004454, 7.449127
+-- - Friedhof: 51.009322, 7.452299
+-- - Grundschule: 51.004944, 7.451247
+-- - Sportplatz: 51.002658, 7.454649
+-- - Dorfgemeinschaftsplatz: 51.010200, 7.455458
 -- ============================================================================
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
@@ -27,16 +35,6 @@ DELETE FROM suspects WHERE rallye_id = 1;
 DELETE FROM stations WHERE rallye_id = 1;
 DELETE FROM start_codes WHERE rallye_id = 1;
 DELETE FROM rallyes WHERE id = 1;
-
--- Auto-Inkremente zuruecksetzen (optional, verhindert ID-Konflikte)
--- ALTER TABLE rallyes AUTO_INCREMENT = 1;
--- ALTER TABLE stations AUTO_INCREMENT = 1;
--- ALTER TABLE puzzles AUTO_INCREMENT = 1;
--- ALTER TABLE suspects AUTO_INCREMENT = 1;
--- ALTER TABLE teams AUTO_INCREMENT = 1;
--- ALTER TABLE start_codes AUTO_INCREMENT = 1;
--- ALTER TABLE story_nodes AUTO_INCREMENT = 1;
--- ALTER TABLE story_node_options AUTO_INCREMENT = 1;
 
 -- ============================================================================
 -- TEIL 2: RALLYE ERSTELLEN
@@ -107,23 +105,30 @@ VALUES
 -- ============================================================================
 
 -- 4 Verdachtigen-Stationen + 2 GPS-Stationen + 1 finale Anklage-Station
+-- Standorte:
+-- - Kriegerdenkmal: 51.004009, 7.454024
+-- - Kirche: 51.004454, 7.449127
+-- - Friedhof: 51.009322, 7.452299
+-- - Grundschule: 51.004944, 7.451247
+-- - Sportplatz: 51.002658, 7.454649
+-- - Dorfgemeinschaftsplatz: 51.010200, 7.455458
 
 INSERT INTO stations (
     id, rallye_id, title, description, story_text, qr_code, latitude, longitude,
     geofence_radius_meters, unlock_type, discovery_mode, order_index, points, is_active, created_at
 ) VALUES
     -- Verdacht-Stationen 1-4
-    (101, 1, 'Lars Jensen - Hafen', 'Treffpunkt mit Lars Jensen', 'Lars Jensen wirkt nervoes. Er hantiert mit einem Paket.', 'HAFEN1', 51.0350, 7.5200, 40, 'qr', 'leadonly', 1, 100, 1, NOW()),
-    (102, 1, 'Maren Koch - Museum', 'Viking-Museum Schnellenbach', 'Maren Koch zeigt euch alte Karten und Dokumente.', 'MUSEUM1', 51.0360, 7.5210, 40, 'qr', 'leadonly', 2, 100, 1, NOW()),
-    (103, 1, 'Nils Petersen - Werft', 'Alte Werft', 'Kapitaen Nils Petersen steht an der Werft.', 'WERFT1', 51.0370, 7.5220, 40, 'qr', 'leadonly', 3, 100, 1, NOW()),
-    (104, 1, 'Olivia Strand - Leuchtturm', 'Leuchtturm Schnellenbach', 'Fotografin Olivia Strand wartet am Leuchtturm.', 'TURM1', 51.0380, 7.5230, 40, 'qr', 'leadonly', 4, 100, 1, NOW()),
+    (101, 1, 'Kriegerdenkmal', 'Treffpunkt am Denkmal', 'Lars Jensen wirkt nervoes. Er hantiert mit einem Paket.', 'DENKMAL1', 51.004009, 7.454024, 40, 'qr', 'leadonly', 1, 100, 1, NOW()),
+    (102, 1, 'Kirche', 'Kirche Schnellenbach', 'Maren Koch zeigt euch alte Karten und Dokumente.', 'KIRCHE1', 51.004454, 7.449127, 40, 'qr', 'leadonly', 2, 100, 1, NOW()),
+    (103, 1, 'Grundschule', 'Grundschule Schnellenbach', 'Nils Petersen steht vor der Schule. Er pfeift eine Melodie.', 'SCHULE1', 51.004944, 7.451247, 40, 'qr', 'leadonly', 3, 100, 1, NOW()),
+    (104, 1, 'Dorfgemeinschaftsplatz', 'Dorfgemeinschaftsplatz', 'Fotografin Olivia Strand wartet am Platz. Ihre Kamera ist voll.', 'DORF1', 51.010200, 7.455458, 40, 'qr', 'leadonly', 4, 100, 1, NOW()),
 
     -- GPS-Stationen
-    (151, 1, 'Friedhof Schnellenbach', 'Finde das Grabmal via GPS', 'Auf dem Grabmal steht eine wichtige Inschrift.', NULL, 51.0340, 7.5190, 50, 'gps', 'proximity', 5, 150, 1, NOW()),
-    (152, 1, 'Sportplatz auf dem Hoechsten', 'Loese das Raetsel am Sportplatz', 'Die Antwort findest du am Spielfeldrand.', NULL, 51.0345, 7.5195, 50, 'gps', 'proximity', 6, 150, 1, NOW()),
+    (151, 1, 'Friedhof Schnellenbach', 'Finde das Grabmal via GPS', 'Auf dem Grabmal steht eine wichtige Inschrift.', NULL, 51.009322, 7.452299, 50, 'gps', 'proximity', 5, 150, 1, NOW()),
+    (152, 1, 'Sportplatz auf dem Hoechsten', 'Loese das Raetsel am Sportplatz', 'Die Antwort findest du am Spielfeldrand.', NULL, 51.002658, 7.454649, 50, 'gps', 'proximity', 6, 150, 1, NOW()),
 
-    -- Finale Anklage-Station
-    (199, 1, 'Geheimer Treff', 'Hier wird der Schatz versteckt', 'Der wahre Dieb hat den Schatz hier versteckt.', 'SCHATZ1', 51.0390, 7.5240, 40, 'qr', 'leadonly', 7, 500, 0, NOW());
+    -- Finale Anklage-Station (nutzt Dorfgemeinschaftsplatz als Treff)
+    (199, 1, 'Geheimer Treff', 'Hier wird der Schatz versteckt', 'Der wahre Dieb hat den Schatz hier versteckt.', 'SCHATZ1', 51.010200, 7.455458, 40, 'qr', 'leadonly', 7, 500, 0, NOW());
 
 -- ============================================================================
 -- TEIL 7: PUZZLES ERSTELLEN
@@ -132,19 +137,19 @@ INSERT INTO stations (
 INSERT INTO puzzles (
     id, station_id, type, question, hint, hint_penalty, story_clue_text, media_url, points, time_limit_seconds, max_attempts, order_index, is_active, created_at
 ) VALUES
-    -- Lars Jensen - Hafen
-    (1001, 101, 'text', 'Wie heisst der groesste Fisch auf dem Schild am Stand?', 'Achte auf die Farbe des Fisches.', 5, 'Lars war am Hafen...', NULL, 50, NULL, 3, 1, 1, NOW()),
-    -- Maren Koch - Museum
-    (1002, 102, 'number', 'In welchem Raum steht das Viking-Schiff? (Raumnummer)', 'Die Nummer ist einstellig.', 5, 'Maren kennt das Museum...', NULL, 50, NULL, 3, 1, 1, NOW()),
-    -- Nils Petersen - Werft
+    -- Kriegerdenkmal (Lars Jensen)
+    (1001, 101, 'text', 'Welches Jahr steht auf dem Denkmal?', 'Suche nach der Inschrift.', 5, 'Lars war am Denkmal...', NULL, 50, NULL, 3, 1, 1, NOW()),
+    -- Kirche (Maren Koch)
+    (1002, 102, 'number', 'Wie viele Fenster hat die Kirche auf der Vorderseite?', 'Zaehle die Fenster ueber dem Eingang.', 5, 'Maren kennt die Kirche...', NULL, 50, NULL, 3, 1, 1, NOW()),
+    -- Grundschule (Nils Petersen)
     (1003, 103, 'word_scramble', 'Was hat Zahne, kann aber nicht beissen? (Loesungswort)', 'Es liegt im Badezimmer.', 5, 'Nils pfeift eine Melodie...', NULL, 50, NULL, 3, 1, 1, NOW()),
-    -- Olivia Strand - Leuchtturm
-    (1004, 104, 'treasure_hunt', 'Fotografiere das Wappen am Eingang', 'Das Wappen ist rund und golden.', 5, 'Olivia hat alles fotografiert...', NULL, 50, NULL, 3, 1, 1, NOW()),
+    -- Dorfgemeinschaftsplatz (Olivia Strand)
+    (1004, 104, 'treasure_hunt', 'Fotografiere das Schild am Eingang', 'Das Schild ist rund und blau.', 5, 'Olivia hat alles fotografiert...', NULL, 50, NULL, 3, 1, 1, NOW()),
 
     -- GPS-Friedhof
     (1005, 151, 'number', 'Wie viele Stufen hat das Grabmal?', 'Zaehle sorgfaeltig.', 5, 'Der Friedhof hat viele Stufen...', NULL, 75, NULL, 3, 1, 1, NOW()),
     -- GPS-Sportplatz
-    (1006, 152, 'text', 'Welches Jahr steht am Sportplatz?', 'Es ist eine vierstellige Zahl.', 5, 'Der Sportplatz ist alt...', NULL, 75, NULL, 3, 1, 1, NOW()),
+    (1006, 152, 'text', 'Welche Farbe haben die Tore?', 'Es gibt zwei moegliche Antworten.', 5, 'Der Sportplatz ist alt...', NULL, 75, NULL, 3, 1, 1, NOW()),
 
     -- Geheimer Treff (Finale)
     (1007, 199, 'text', 'Wer hat den Schatz gestohlen? (Vorname Nachname)', 'Nur wer alle Spuren verfolgt hat, kennt die Antwort.', 5, 'Der wahre Dieb...', NULL, 200, NULL, 3, 1, 1, NOW());
@@ -164,17 +169,17 @@ INSERT INTO story_nodes (
     -- Info-Knoten mit Button-Auswahl der 4 Verdachtigen
     (2, 1, 'info', 'Hier sind die vier Verdachtigen. Besucht ihre Stationen!', NULL, NULL, NULL, NULL, 'buttons', 'none', NULL, NULL, NULL, 0, 0, NULL, 'none', NULL, NULL, 1, NOW()),
 
-    -- Lars Jensen -> Hafen (reveals_suspect_id = 1, station_id = 101)
-    (3, 1, 'info', 'Ihr trefft Lars Jensen am Hafen. Er wirkt nervoes.', NULL, NULL, 51.0350, 7.5200, 'none', 'none', 101, NULL, 1, 0, 0, NULL, 'none', NULL, NULL, 1, NOW()),
+    -- Lars Jensen -> Kriegerdenkmal (reveals_suspect_id = 1, station_id = 101)
+    (3, 1, 'info', 'Ihr trefft Lars Jensen am Kriegerdenkmal. Er wirkt nervoes.', NULL, NULL, 51.004009, 7.454024, 'none', 'none', 101, NULL, 1, 0, 0, NULL, 'none', NULL, NULL, 1, NOW()),
 
-    -- Maren Koch -> Museum (reveals_suspect_id = 2, station_id = 102)
-    (4, 1, 'info', 'Maren Koch empfaengt euch im Museum. Sie zeigt euch alte Karten.', NULL, NULL, 51.0360, 7.5210, 'none', 'none', 102, NULL, 2, 0, 0, NULL, 'none', NULL, NULL, 1, NOW()),
+    -- Maren Koch -> Kirche (reveals_suspect_id = 2, station_id = 102)
+    (4, 1, 'info', 'Maren Koch empfaengt euch an der Kirche. Sie zeigt euch alte Karten.', NULL, NULL, 51.004454, 7.449127, 'none', 'none', 102, NULL, 2, 0, 0, NULL, 'none', NULL, NULL, 1, NOW()),
 
-    -- Nils Petersen -> Werft (reveals_suspect_id = 3, station_id = 103)
-    (5, 1, 'info', 'Kapitaen Nils Petersen steht an der Werft. Er pfeift eine alte Melodie.', NULL, NULL, 51.0370, 7.5220, 'none', 'none', 103, NULL, 3, 0, 0, NULL, 'none', NULL, NULL, 1, NOW()),
+    -- Nils Petersen -> Grundschule (reveals_suspect_id = 3, station_id = 103)
+    (5, 1, 'info', 'Nils Petersen steht vor der Grundschule. Er pfeift eine alte Melodie.', NULL, NULL, 51.004944, 7.451247, 'none', 'none', 103, NULL, 3, 0, 0, NULL, 'none', NULL, NULL, 1, NOW()),
 
-    -- Olivia Strand -> Leuchtturm (reveals_suspect_id = 4, station_id = 104)
-    (6, 1, 'info', 'Fotografin Olivia Strand wartet am Leuchtturm. Ihre Kamera ist voll.', NULL, NULL, 51.0380, 7.5230, 'none', 'none', 104, NULL, 4, 0, 0, NULL, 'none', NULL, NULL, 1, NOW()),
+    -- Olivia Strand -> Dorfgemeinschaftsplatz (reveals_suspect_id = 4, station_id = 104)
+    (6, 1, 'info', 'Fotografin Olivia Strand wartet am Dorfgemeinschaftsplatz. Ihre Kamera ist voll.', NULL, NULL, 51.010200, 7.455458, 'none', 'none', 104, NULL, 4, 0, 0, NULL, 'none', NULL, NULL, 1, NOW()),
 
     -- Nach allen vier Besuchen: Hinweis auf finale Anklage
     (7, 1, 'info', 'Ihr habt alle vier Verdachtigen besucht. Jetzt koennt ihr den wahren Dieb anklagen!', NULL, NULL, NULL, NULL, 'buttons', 'none', NULL, NULL, NULL, 0, 0, NULL, 'none', NULL, NULL, 1, NOW()),
@@ -186,7 +191,7 @@ INSERT INTO story_nodes (
     (9, 1, 'answer', 'Diese Person war es nicht. Sucht weiter!', NULL, NULL, NULL, NULL, 'none', 'none', NULL, NULL, NULL, 0, 0, NULL, 'none', NULL, NULL, 1, NOW()),
 
     -- Richtige Anklage -> Geheimer Treff (reveals_suspect_id = 5, station_id = 199)
-    (10, 1, 'twist', 'Richtig! Der wahre Dieb hat den Schatz am geheimen Treff versteckt. Geht dorthin!', NULL, NULL, 51.0390, 7.5240, 'none', 'none', 199, NULL, 5, 0, 0, NULL, 'none', NULL, NULL, 1, NOW());
+    (10, 1, 'twist', 'Richtig! Der wahre Dieb hat den Schatz am geheimen Treff versteckt. Geht dorthin!', NULL, NULL, 51.010200, 7.455458, 'none', 'none', 199, NULL, 5, 0, 0, NULL, 'none', NULL, NULL, 1, NOW());
 
 -- ============================================================================
 -- TEIL 9: STORY-NODE-OPTIONEN (BUTTONS) ERSTELLEN
@@ -195,10 +200,10 @@ INSERT INTO story_nodes (
 INSERT INTO story_node_options (id, node_id, label, correct_value, leads_to_node_id, unlocks_station_id, blocks_alternate_node_id, unlocks_suspect_id)
 VALUES
     -- Optionen fuer Knoten 2 (4 Verdachtige zur Auswahl)
-    (1, 2, 'Lars Jensen (Hafen)', NULL, 3, 101, NULL, 1),
-    (2, 2, 'Maren Koch (Museum)', NULL, 4, 102, NULL, 2),
-    (3, 2, 'Nils Petersen (Werft)', NULL, 5, 103, NULL, 3),
-    (4, 2, 'Olivia Strand (Leuchtturm)', NULL, 6, 104, NULL, 4),
+    (1, 2, 'Lars Jensen (Kriegerdenkmal)', NULL, 3, 101, NULL, 1),
+    (2, 2, 'Maren Koch (Kirche)', NULL, 4, 102, NULL, 2),
+    (3, 2, 'Nils Petersen (Grundschule)', NULL, 5, 103, NULL, 3),
+    (4, 2, 'Olivia Strand (Dorfgemeinschaftsplatz)', NULL, 6, 104, NULL, 4),
 
     -- Optionen fuer Knoten 7 (Anklage moeglich)
     (5, 7, 'Jetzt anklagen!', NULL, 8, NULL, NULL, NULL),
@@ -242,13 +247,13 @@ COMMIT;
 -- TEIL 12: KONTROLL-ABFRAGEN (optional, zum Testen)
 -- ============================================================================
 
--- Zeige alle Stationen
-SELECT id, title, unlock_type, geofence_radius_meters FROM stations WHERE rallye_id = 1 ORDER BY id;
+-- Zeige alle Stationen mit Koordinaten
+SELECT id, title, latitude, longitude, unlock_type FROM stations WHERE rallye_id = 1 ORDER BY id;
 
 -- Zeige alle Verdachtigen
 SELECT id, name, is_guilty FROM suspects WHERE rallye_id = 1 ORDER BY id;
 
--- Zeige alle Story-Knoten
+-- Zeige alle Story-Knoten mit Zuordnung
 SELECT id, type, message_text, station_id, reveals_suspect_id FROM story_nodes WHERE rallye_id = 1 ORDER BY id;
 
 -- Zeige Ermittlungsfortschritt aller Teams
@@ -272,6 +277,6 @@ ORDER BY t.id;
 -- ============================================================================
 
 -- Naechste Schritte:
--- 1. In /team/chat/respond.php die 4-Verdachtige-Sperre einbauen
--- 2. GPS-Koordinaten an reale Standorte anpassen
--- 3. QR-Codes fuer Stationen 101-104 und 199 generieren
+-- 1. QR-Codes fuer Stationen generieren (DENKMAL1, KIRCHE1, SCHULE1, DORF1, SCHATZ1)
+-- 2. Anklage-Sperre in /team/chat/respond.php einbauen
+-- 3. Testen mit Team Alpha (Startcode: ALPHA1)
