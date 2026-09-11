@@ -1,111 +1,102 @@
 // team-app/src/context/GeofenceContext.jsx
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { apiClient } from '../api/client';
+// GPS-Live-Tracking: meldet die Team-Position alle 25s an
+// POST /team/check-geofence.php. Feldname der Antwort exakt nach dem
+// tatsächlichen Backend-Code: "newly_unlocked_stations" (Array aus
+// { id, title }), siehe check-geofence.php.
+import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import { useAuth } from './AuthContext';
+import { api } from '../api/client';
+
+
+const CHECK_INTERVAL_MS = 25_000; // 20-30s laut Konzept, Mittelwert gewählt
+
 
 const GeofenceContext = createContext(null);
 
-export function GeofenceProvider({ children }) {
-  const [lastPosition, setLastPosition] = useState(null);
-  const [permissionState, setPermissionState] = useState('prompt');
-  const [unlockedStationIds, setUnlockedStationIds] = useState(new Set());
-  const positionIntervalRef = useRef(null);
 
-  // Position alle 5 Sekunden aktualisieren und ans Backend senden
-  const updatePosition = useCallback(async () => {
-    if (!navigator.geolocation) {
-      console.warn('[Geofence] Geolocation nicht unterstuetzt');
+export function GeofenceProvider({ children }) {
+  const { status } = useAuth();
+  const [permissionState, setPermissionState] = useState('unknown'); // unknown | granted | denied | unsupported
+  const [lastPosition, setLastPosition] = useState(null);
+  const [newlyUnlocked, setNewlyUnlocked] = useState([]);
+  const intervalRef = useRef(null);
+  const onStationUnlockedRef = useRef(null);
+
+  // Callback setzen (wird von StationDetailScreen verwendet)
+  const setOnStationUnlocked = useCallback((callback) => {
+    onStationUnlockedRef.current = callback;
+  }, []);
+
+  function dismissUnlockNotice() {
+    setNewlyUnlocked([]);
+  }
+
+  useEffect(() => {
+    if (status !== 'loggedIn') {
+      if (intervalRef.current) clearInterval(intervalRef.current);
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const pos = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy,
-        };
-        setLastPosition(pos);
-
-        // Position ans Backend senden
-        try {
-          const response = await apiClient.post('/team/check-geofence.php', {
-            latitude: pos.latitude,
-            longitude: pos.longitude,
-          });
-
-          if (response.success && response.newly_unlocked_stations) {
-            const newIds = response.newly_unlocked_stations.map((s) => s.id);
-            if (newIds.length > 0) {
-              console.log('[Geofence] Neu freigeschaltet:', newIds);
-              setUnlockedStationIds((prev) => new Set([...prev, ...newIds]));
-            }
-          }
-        } catch (err) {
-          console.error('[Geofence] Fehler beim Senden der Position:', err);
-        }
-      },
-      (error) => {
-        console.error('[Geofence] Positionsfehler:', error);
-        if (error.code === error.PERMISSION_DENIED) {
-          setPermissionState('denied');
-        }
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  }, []);
-
-  // Beim Mount: Berechtigung pruefen und Interval starten
-  useEffect(() => {
-    async function checkPermission() {
-      if (navigator.permissions) {
-        try {
-          const result = await navigator.permissions.query({ name: 'geolocation' });
-          setPermissionState(result.state);
-          result.onchange = () => setPermissionState(result.state);
-        } catch {
-          // Fallback: einfach Interval starten
-        }
-      }
-
-      // Erste Position sofort holen
-      updatePosition();
-
-      // Alle 5 Sekunden aktualisieren
-      positionIntervalRef.current = setInterval(updatePosition, 5000);
-
-      return () => {
-        if (positionIntervalRef.current) {
-          clearInterval(positionIntervalRef.current);
-        }
-      };
+    if (!('geolocation' in navigator)) {
+      setPermissionState('unsupported');
+      return;
     }
 
-    checkPermission();
-  }, [updatePosition]);
+    async function reportPosition() {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          setPermissionState('granted');
+          const { latitude, longitude } = position.coords;
+          setLastPosition({ latitude, longitude });
 
-  // Manueller Check (z. B. nach QR-Scan)
-  const checkGeofence = useCallback(() => {
-    updatePosition();
-  }, [updatePosition]);
 
-  const value = {
-    lastPosition,
-    permissionState,
-    unlockedStationIds,
-    checkGeofence,
-  };
+          try {
+            const result = await api.checkGeofence(latitude, longitude);
+            const unlocked = result?.newly_unlocked_stations ?? [];
+            if (Array.isArray(unlocked) && unlocked.length > 0) {
+              setNewlyUnlocked((prev) => [...prev, ...unlocked]);
+              // Callback fuer StationDetailScreen aufrufen
+              if (onStationUnlockedRef.current) {
+                onStationUnlockedRef.current(unlocked.map((s) => s.id));
+              }
+            }
+          } catch {
+            // Geofence-Check-Fehler bewusst leise ignorieren, nächster
+            // Versuch folgt automatisch beim nächsten Intervall.
+          }
+        },
+        (geoError) => {
+          if (geoError.code === geoError.PERMISSION_DENIED) {
+            setPermissionState('denied');
+          }
+        },
+        { enableHighAccuracy: true, maximumAge: 10_000, timeout: 15_000 }
+      );
+    }
+
+
+    reportPosition();
+    intervalRef.current = setInterval(reportPosition, CHECK_INTERVAL_MS);
+
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [status]);
+
 
   return (
-    <GeofenceContext.Provider value={value}>
+    <GeofenceContext.Provider
+      value={{ permissionState, lastPosition, newlyUnlocked, dismissUnlockNotice, setOnStationUnlocked }}
+    >
       {children}
     </GeofenceContext.Provider>
   );
 }
 
+
 export function useGeofence() {
-  const context = useContext(GeofenceContext);
-  if (!context) {
-    throw new Error('useGeofence muss innerhalb von GeofenceProvider verwendet werden');
-  }
-  return context;
+  const ctx = useContext(GeofenceContext);
+  if (!ctx) throw new Error('useGeofence muss innerhalb von <GeofenceProvider> verwendet werden.');
+  return ctx;
 }

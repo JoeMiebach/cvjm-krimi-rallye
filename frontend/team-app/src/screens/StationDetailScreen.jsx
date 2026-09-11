@@ -1,14 +1,17 @@
 // team-app/src/screens/StationDetailScreen.jsx
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useGeofence } from '../context/GeofenceContext';
 import QrScanner from '../components/QrScanner';
 import StationCompass from '../components/StationCompass';
+
 
 export default function StationDetailScreen() {
   const { id } = useParams();
   const { rallyeId } = useAuth();
+  const { setOnStationUnlocked } = useGeofence();
   const navigate = useNavigate();
   const [station, setStation] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -16,20 +19,34 @@ export default function StationDetailScreen() {
   const [unlocking, setUnlocking] = useState(false);
   const [scannerActive, setScannerActive] = useState(false);
 
-  useEffect(() => {
+  // Station laden
+  const loadStation = useCallback(async () => {
     if (!rallyeId) return;
     let cancelled = false;
-    (async () => {
-      try {
-        const result = await api.getStations(rallyeId);
-        const found = (result.stations || []).find((entry) => String(entry.id) === String(id));
-        if (!cancelled) setStation(found || null);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+    try {
+      const result = await api.getStations(rallyeId);
+      const found = (result.stations || []).find((entry) => String(entry.id) === String(id));
+      if (!cancelled) setStation(found || null);
+    } finally {
+      if (!cancelled) setLoading(false);
+    }
     return () => { cancelled = true; };
   }, [rallyeId, id]);
+
+  // Beim Mount: Station laden + Callback registrieren
+  useEffect(() => {
+    loadStation();
+
+    // Callback registrieren: Bei neuer Freischaltung dieser Station neu laden
+    setOnStationUnlocked((unlockedIds) => {
+      if (unlockedIds.includes(Number(id))) {
+        console.log('[StationDetail] Station wurde freigeschaltet, lade neu...');
+        setLoading(true);
+        loadStation();
+      }
+    });
+  }, [id, loadStation, setOnStationUnlocked]);
+
 
   async function handleScanSuccess(decodedText) {
     setScannerActive(false);
@@ -44,11 +61,14 @@ export default function StationDetailScreen() {
     }
   }
 
+
   if (loading) return <p className="p-6 text-ink/60">Lade Station...</p>;
   if (!station) return <div className="min-h-screen bg-surface px-4 pb-24 pt-16"><p className="card text-red-700">Station nicht gefunden.</p><Link to="/stations" className="mt-4 inline-block text-primary-700 underline">Zurueck zur Uebersicht</Link></div>;
 
+
   const hasCoordinates = station.latitude && station.longitude;
   const mapLink = hasCoordinates ? `https://www.openstreetmap.org/?mlat=${station.latitude}&mlon=${station.longitude}#map=18/${station.latitude}/${station.longitude}` : null;
+
 
   return (
     <div className="min-h-screen bg-surface px-4 pb-24 pt-16">
