@@ -1,9 +1,5 @@
 <?php
 // GET /api/team/chat.php - siehe 04_API_Spezifikation_PHP.md ("Team-Endpunkte")
-// GEAENDERT (11.09.2026, 00-Bug-Fix): Optionen werden nur bei response_type='buttons'
-// geladen, nicht bei text/number/puzzle_ref/photo_ref. Sonst rendert das Frontend
-// fä¿½lschlicherweise die Options-ID (z.B. "00") statt nur das Eingabeformular.
-// HOTFIX (11.09.2026, 03:40): Robustere Options-Abfrage mit explizitem ORDER BY.
 require_once __DIR__ . '/../../bootstrap.php';
 requireMethod('GET');
 $team = requireTeamAuth();
@@ -23,21 +19,15 @@ $chat = $chatStmt->fetchAll();
 
 $result = [];
 foreach ($chat as &$entry) {
-    $options = [];
-    // Optionen nur bei buttons laden -- das ist der Fix fuer den "00"-Bug
-    if ($entry['response_type'] === 'buttons') {
-        $optStmt = $pdo->prepare(
-            "SELECT id, label, unlocks_station_id, leads_to_node_id, unlocks_suspect_id
-             FROM story_node_options
-             WHERE node_id = ?
-             ORDER BY id ASC"
-        );
-        $optStmt->execute([$entry['node_id']]);
-        $optRows = $optStmt->fetchAll();
-        if ($optRows) {
-            $options = $optRows;
-        }
-    }
+    $optStmt = $pdo->prepare(
+        "SELECT id, label, unlocks_station_id, leads_to_node_id, unlocks_suspect_id
+         FROM story_node_options
+         WHERE node_id = ?
+         ORDER BY id ASC"
+    );
+    $optStmt->execute([$entry['node_id']]);
+    $options = $optStmt->fetchAll();
+
     $result[] = [
         'node_id' => (int)$entry['node_id'],
         'delivered_at' => $entry['delivered_at'],
