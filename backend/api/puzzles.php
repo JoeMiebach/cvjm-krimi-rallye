@@ -2,9 +2,14 @@
 // GET /api/puzzles.php?station_id= - siehe 04_API_Spezifikation_PHP.md ("Team-Endpunkte")
 // HINWEIS: Die einleitenden Zeilen (require bootstrap.php, requireMethods,
 // requireTeamAuth) sind hier so rekonstruiert, wie es dem Muster der anderen
-// Team-Endpunkte entspricht. Bitte mit dem tatsächlichen Datei-Anfang
+// Team-Endpunkte entspricht. Bitte mit dem tatsaechlichen Datei-Anfang
 // abgleichen und ggf. anpassen -- der eigentliche fachliche Fix ist der
 // markierte Block weiter unten (Multiple-Choice-Optionen).
+//
+// FIX (11.09.2026, 23:21): Unlock-Pruefung beruecksichtigt jetzt Migration 007
+// (unlocked_at kann NULL sein bei nur "entdeckten" Stationen). Ein Team kann
+// jetzt nur dann Puzzles sehen, wenn die Station tatsaechlich freigeschaltet
+// ist (unlocked_at IS NOT NULL) ODER unlock_type = 'auto' hat.
 require_once __DIR__ . '/bootstrap.php';
 requireMethods(['GET']);
 $team = requireTeamAuth();
@@ -20,7 +25,16 @@ if (!$stationStmt->fetch()) {
     jsonError(404, 'Station nicht gefunden');
 }
 
-$unlockStmt = $pdo->prepare("SELECT 1 FROM station_unlocks WHERE team_id = ? AND station_id = ?");
+// FIX (23:21): Pruefen, ob Station wirklich freigeschaltet ist (nicht nur
+// entdeckt). Ein Eintrag in station_unlocks kann existieren, aber unlocked_at
+// kann noch NULL sein (nur "entdeckt" via Chat). 'auto'-Stationen sind eine
+// Ausnahme -- sie gelten beim Entdecken sofort als freigeschaltet.
+$unlockStmt = $pdo->prepare("
+    SELECT 1 FROM station_unlocks su
+    JOIN stations s ON s.id = su.station_id
+    WHERE su.team_id = ? AND su.station_id = ?
+      AND (su.unlocked_at IS NOT NULL OR s.unlock_type = 'auto')
+");
 $unlockStmt->execute([$team['id'], $stationId]);
 if (!$unlockStmt->fetch()) {
     jsonError(403, 'Station noch nicht freigeschaltet');
@@ -51,8 +65,8 @@ foreach ($puzzles as $p) {
     ];
 
     // NEU: Bei Multiple Choice die Antwortoptionen mitschicken -- OHNE
-    // is_correct! Sonst könnte die richtige Antwort im Network-Tab
-    // ausgelesen werden. Die eigentliche Prüfung bleibt serverseitig in
+    // is_correct! Sonst koennte die richtige Antwort im Network-Tab
+    // ausgelesen werden. Die eigentliche Pruefung bleibt serverseitig in
     // submit.php. Reihenfolge wird gemischt, damit die richtige Antwort
     // nicht immer an derselben Position steht.
     if ($p['type'] === 'multiple_choice') {
