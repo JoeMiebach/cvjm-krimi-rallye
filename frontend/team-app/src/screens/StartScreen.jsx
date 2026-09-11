@@ -71,7 +71,7 @@ export default function StartScreen() {
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="z. B. AB3C7DXQ"
-                maxLength={8}
+                maxLength={12}
                 autoFocus
                 autoComplete="off"
               />
