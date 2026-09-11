@@ -12,6 +12,7 @@
 //
 // NEU (11.09.2026, entdeckt): Chat markiert Station als "entdeckt" (discovered_at),
 // damit sie in der Stations-Liste mit "🔒 verschlossen" angezeigt werden kann.
+// FIX (11.09.2026, 13:59): discovered_at nur setzen wenn Spalte existiert
 
 require_once __DIR__ . '/../../bootstrap.php';
 requireMethod('POST');
@@ -112,6 +113,15 @@ if ($log['type'] === 'accusation') {
 $unlockedNodes = [];
 $discoveredStationId = null;
 
+// Pruefen ob discovered_at-Spalte existiert (Migration 006)
+$columnCheckStmt = $pdo->query("
+    SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS 
+    WHERE TABLE_SCHEMA = DATABASE() 
+    AND TABLE_NAME = 'station_unlocks' 
+    AND COLUMN_NAME = 'discovered_at'
+");
+$hasDiscoveredColumn = ($columnCheckStmt->fetch()['cnt'] ?? 0) > 0;
+
 // ---------------------------------------------------------------------
 // Station als "entdeckt" markieren (unlocks_station_id) - jetzt auch bei puzzle_ref
 // ---------------------------------------------------------------------
@@ -136,6 +146,19 @@ if ($matchedOption && !empty($matchedOption['unlocks_station_id'])) {
             ));
         } else {
             // Station als entdeckt markieren (nicht freischalten!)
+            if ($hasDiscoveredColumn) {
+                $stationDiscoverStmt = $pdo->prepare("
+                    INSERT INTO station_unlocks (team_id, station_id, discovered_at)
+                    VALUES (?, ?, NOW())
+                    ON DUPLICATE KEY UPDATE discovered_at = COALESCE(discovered_at, NOW())
+                ");
+                $stationDiscoverStmt->execute([$team['id'], (int)$matchedOption['unlocks_station_id']]);
+                $discoveredStationId = (int)$matchedOption['unlocks_station_id'];
+            }
+        }
+    } else {
+        // Normale Station-Entdeckung (nicht Anklage)
+        if ($hasDiscoveredColumn) {
             $stationDiscoverStmt = $pdo->prepare("
                 INSERT INTO station_unlocks (team_id, station_id, discovered_at)
                 VALUES (?, ?, NOW())
@@ -144,15 +167,6 @@ if ($matchedOption && !empty($matchedOption['unlocks_station_id'])) {
             $stationDiscoverStmt->execute([$team['id'], (int)$matchedOption['unlocks_station_id']]);
             $discoveredStationId = (int)$matchedOption['unlocks_station_id'];
         }
-    } else {
-        // Normale Station-Entdeckung (nicht Anklage)
-        $stationDiscoverStmt = $pdo->prepare("
-            INSERT INTO station_unlocks (team_id, station_id, discovered_at)
-            VALUES (?, ?, NOW())
-            ON DUPLICATE KEY UPDATE discovered_at = COALESCE(discovered_at, NOW())
-        ");
-        $stationDiscoverStmt->execute([$team['id'], (int)$matchedOption['unlocks_station_id']]);
-        $discoveredStationId = (int)$matchedOption['unlocks_station_id'];
     }
 }
 
