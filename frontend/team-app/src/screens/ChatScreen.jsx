@@ -19,7 +19,7 @@
 // gesendet.
 // GEFIXT (11.09.2026, 12:56): PuzzleRefButton-Komponente fuer puzzle_ref-Status
 // GEFIXT (12.09.2026): Highlight-Animation wenn von Offene-Aufgaben genavigt wird
-// GEFIXT (12.09.2026, 00:49): Scroll-Fix damit scrollIntoView funktioniert
+// GEFIXT (12.09.2026, 00:49): Scroll-Fix mit requestAnimationFrame
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
@@ -94,7 +94,10 @@ function ChatBubble({ entry, onRespond, onSubmitPhoto, navigate, highlight }) {
   useEffect(() => {
     if (highlight && bubbleRef.current && !hasScrolledRef.current) {
       hasScrolledRef.current = true;
-      bubbleRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Mit requestAnimationFrame warten bis DOM aktualisiert wurde
+      requestAnimationFrame(() => {
+        bubbleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
       bubbleRef.current.classList.add('ring-2', 'ring-accent-500', 'ring-offset-2');
       setTimeout(() => {
         bubbleRef.current?.classList.remove('ring-2', 'ring-accent-500', 'ring-offset-2');
