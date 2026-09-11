@@ -1,8 +1,8 @@
 <?php
 // GET /api/stations.php
 //
-// AENDERO (11.09.2026): Zeigt NUR noch freigeschaltete Stationen (via QR/GPS).
-// Stationen werden NICHT mehr automatisch im Chat freigeschaltet.
+// AENDERO (11.09.2026): Zeigt freigeschaltete Stationen (via QR/GPS) UND
+// entdeckte Stationen (via Chat) mit "🔒 verschlossen"-Status.
 
 require_once __DIR__ . '/bootstrap.php';
 requireMethod('GET');
@@ -14,11 +14,21 @@ if ($rallyeId === 0) {
 }
 
 $stmt = $pdo->prepare("
-    SELECT s.*
+    SELECT 
+        s.*,
+        su.unlocked_at,
+        su.discovered_at,
+        CASE 
+            WHEN su.unlocked_at IS NOT NULL THEN 'unlocked'
+            WHEN su.discovered_at IS NOT NULL THEN 'discovered'
+            ELSE 'locked'
+        END AS status
     FROM stations s
-    INNER JOIN station_unlocks su ON su.station_id = s.id AND su.team_id = ?
+    LEFT JOIN station_unlocks su ON su.station_id = s.id AND su.team_id = ?
     WHERE s.rallye_id = ? AND s.is_active = 1
-    ORDER BY s.sort_order
+    ORDER BY 
+        CASE WHEN su.unlocked_at IS NOT NULL THEN 0 ELSE 1 END,
+        s.sort_order
 ");
 $stmt->execute([$team['id'], $rallyeId]);
 $stations = $stmt->fetchAll();

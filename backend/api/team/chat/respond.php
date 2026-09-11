@@ -9,6 +9,9 @@
 // FIX (11.09.2026, unlocks_station_id ENTFERNT): Stationen werden NICHT mehr
 // ueber Chat freigeschaltet. Freischaltung erfolgt AUSSCHLIESSLICH per QR-Code
 // oder GPS-Geofence (siehe /api/stations/unlock.php).
+//
+// NEU (11.09.2026, entdeckt): Chat markiert Station als "entdeckt" (discovered_at),
+// damit sie in der Stations-Liste mit "🔒 verschlossen" angezeigt werden kann.
 
 require_once __DIR__ . '/../../bootstrap.php';
 requireMethod('POST');
@@ -107,6 +110,51 @@ if ($log['type'] === 'accusation') {
 }
 
 $unlockedNodes = [];
+$discoveredStationId = null;
+
+// ---------------------------------------------------------------------
+// Station als "entdeckt" markieren (unlocks_station_id) - jetzt auch bei puzzle_ref
+// ---------------------------------------------------------------------
+if ($matchedOption && !empty($matchedOption['unlocks_station_id'])) {
+    // ANKLAGE-SPERRE: Nur bei Anklage-Knoten pruefen
+    if ($log['type'] === 'accusation') {
+        $accusationCheckStmt = $pdo->prepare("
+            SELECT COUNT(DISTINCT s.id) AS visited_count
+            FROM suspects s
+            JOIN station_unlocks su ON su.station_id = s.station_id
+            WHERE su.team_id = ? AND su.unlocked_at IS NOT NULL
+        ");
+        $accusationCheckStmt->execute([$team['id']]);
+        $accusationCheck = $accusationCheckStmt->fetch();
+        $allSuspectsVisited = $accusationCheck && (int)$accusationCheck['visited_count'] >= 4;
+
+        if (!$allSuspectsVisited) {
+            error_log(sprintf(
+                '[ANKLAGE-SPERRE] Team %d: Anklage verweigert, nur %d/4 Verdä¨½tigen besucht',
+                $team['id'],
+                (int)$accusationCheck['visited_count']
+            ));
+        } else {
+            // Station als entdeckt markieren (nicht freischalten!)
+            $stationDiscoverStmt = $pdo->prepare("
+                INSERT INTO station_unlocks (team_id, station_id, discovered_at)
+                VALUES (?, ?, NOW())
+                ON DUPLICATE KEY UPDATE discovered_at = COALESCE(discovered_at, NOW())
+            ");
+            $stationDiscoverStmt->execute([$team['id'], (int)$matchedOption['unlocks_station_id']]);
+            $discoveredStationId = (int)$matchedOption['unlocks_station_id'];
+        }
+    } else {
+        // Normale Station-Entdeckung (nicht Anklage)
+        $stationDiscoverStmt = $pdo->prepare("
+            INSERT INTO station_unlocks (team_id, station_id, discovered_at)
+            VALUES (?, ?, NOW())
+            ON DUPLICATE KEY UPDATE discovered_at = COALESCE(discovered_at, NOW())
+        ");
+        $stationDiscoverStmt->execute([$team['id'], (int)$matchedOption['unlocks_station_id']]);
+        $discoveredStationId = (int)$matchedOption['unlocks_station_id'];
+    }
+}
 
 // ---------------------------------------------------------------------
 // Naechsten Knoten zustellen (leads_to_node_id)
@@ -120,6 +168,6 @@ jsonResponse(200, [
     'success' => true,
     'is_correct' => true,
     'bonus_awarded' => $bonusAwarded,
-    'unlocked_nodes' => $unlockedNodes
-    // 'unlocked_station_id' wurde entfernt - Stationen nur noch per QR/GPS
+    'unlocked_nodes' => $unlockedNodes,
+    'discovered_station_id' => $discoveredStationId
 ]);
