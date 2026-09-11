@@ -7,7 +7,7 @@
 -- - Datenbank-Schema: Live-Schema (phpMyAdmin Export vom 11.09.2026, 02:29 AM)
 -- - Base-URL: https://deine-domain.de/api
 --
--- Stand: 11.09.2026, 04:30 Uhr (final an Live-Schema angepasst)
+-- Stand: 11.09.2026, 04:31 Uhr (mit start_codes fuer teams)
 -- ============================================================================
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
@@ -37,7 +37,19 @@ VALUES (
 );
 
 -- ----------------------------------------------------------------------------
--- 2. Teams (Live-Schema hat kein password_hash, kein is_admin)
+-- 2. Start-Codes (benoetigt vor teams wegen FK teams.start_code -> start_codes.code)
+-- ----------------------------------------------------------------------------
+
+-- Live-Schema: start_codes(id, rallye_id, code, is_used, used_by_team_id, created_at)
+
+INSERT INTO start_codes (id, rallye_id, code, is_used, used_by_team_id, created_at)
+VALUES
+    (1, 1, 'ALPHA1', 0, NULL, NOW()),
+    (2, 1, 'BETA1',  0, NULL, NOW()),
+    (3, 1, 'GAMMA1', 0, NULL, NOW());
+
+-- ----------------------------------------------------------------------------
+-- 3. Teams (Live-Schema hat kein password_hash, kein is_admin)
 -- ----------------------------------------------------------------------------
 
 -- Live-Schema: teams(id, rallye_id, start_code, name, avatar_url, current_latitude, current_longitude, last_position_update, is_active, registered_at)
@@ -55,7 +67,7 @@ FROM teams
 WHERE rallye_id = 1;
 
 -- ----------------------------------------------------------------------------
--- 3. Suspects (Live-Schema: kein role, kein clue, kein station_id)
+-- 4. Suspects (Live-Schema: kein role, kein clue, kein station_id)
 -- ----------------------------------------------------------------------------
 
 -- Live-Schema: suspects(id, rallye_id, name, portrait_icon, is_guilty, wrong_pick_reaction_text, created_at)
@@ -69,7 +81,7 @@ VALUES
     (5, 1, 'Der wahre Dieb', NULL, 1, 'Ihr habt mich erwischt!', NOW());
 
 -- ----------------------------------------------------------------------------
--- 4. Stationen (Live-Schema: title, qr_code, unlock_type, order_index, is_active, story_text)
+-- 5. Stationen (Live-Schema: title, qr_code, unlock_type, order_index, is_active, story_text)
 -- ----------------------------------------------------------------------------
 
 -- Live-Schema: stations(id, rallye_id, title, description, story_text, qr_code, latitude, longitude, geofence_radius_meters, unlock_type, discovery_mode, order_index, points, is_active, created_at)
@@ -92,7 +104,7 @@ INSERT INTO stations (
     (199, 1, 'Geheimer Treff', 'Hier wird der Schatz versteckt', 'Der wahre Dieb hat den Schatz hier versteckt.', 'SCHATZ1', 51.3390, 7.8240, 40, 'qr', 'leadonly', 7, 500, 0, NOW());
 
 -- ----------------------------------------------------------------------------
--- 5. Puzzles zu den Stationen (Live-Schema: order_index, is_active, hint_penalty, story_clue_text)
+-- 6. Puzzles zu den Stationen (Live-Schema: order_index, is_active, hint_penalty, story_clue_text)
 -- ----------------------------------------------------------------------------
 
 -- Live-Schema: puzzles(id, station_id, type, question, hint, hint_penalty, story_clue_text, media_url, points, time_limit_seconds, max_attempts, order_index, is_active, created_at)
@@ -118,7 +130,7 @@ INSERT INTO puzzles (
     (1007, 199, 'text', 'Wer hat den Schatz gestohlen? (Vorname Nachname)', 'Nur wer alle Spuren verfolgt hat, kennt die Antwort.', 5, 'Der wahre Dieb...', NULL, 200, NULL, 3, 1, 1, NOW());
 
 -- ----------------------------------------------------------------------------
--- 6. Story-Chat-Knoten (Live-Schema: type = info/answer/twist/accusation)
+-- 7. Story-Chat-Knoten (Live-Schema: type = info/answer/twist/accusation)
 -- ----------------------------------------------------------------------------
 
 -- Live-Schema: story_nodes(id, rallye_id, type, message_text, image_url, media_url, map_latitude, map_longitude, response_type, media_type, station_id, puzzle_id, reveals_suspect_id, points, is_root, related_node_id, proactive_trigger, proactive_after_minutes, proactive_after_attempts, is_active, created_at)
@@ -157,7 +169,7 @@ INSERT INTO story_nodes (
     (10, 1, 'twist', 'Richtig! Der wahre Dieb hat den Schatz am geheimen Treff versteckt. Geht dorthin!', NULL, NULL, 51.3390, 7.8240, 'none', 'none', 199, NULL, 5, 0, 0, NULL, 'none', NULL, NULL, 1, NOW());
 
 -- ----------------------------------------------------------------------------
--- 7. Story-Node-Optionen (Buttons) (Live-Schema: kein created_at)
+-- 8. Story-Node-Optionen (Buttons) (Live-Schema: kein created_at)
 -- ----------------------------------------------------------------------------
 
 -- Live-Schema: story_node_options(id, node_id, label, correct_value, leads_to_node_id, unlocks_station_id, blocks_alternate_node_id, unlocks_suspect_id)
@@ -181,7 +193,7 @@ VALUES
     (10, 8, 'Der wahre Dieb', 'Der wahre Dieb', 10, NULL, NULL, NULL);
 
 -- ----------------------------------------------------------------------------
--- 8. Initiale Chat-Zustellung an alle Teams
+-- 9. Initiale Chat-Zustellung an alle Teams
 -- ----------------------------------------------------------------------------
 
 -- Einstiegsknoten 1 (is_root) an alle Teams zustellen
@@ -197,7 +209,7 @@ FROM teams
 WHERE rallye_id = 1;
 
 -- ----------------------------------------------------------------------------
--- 9. Optional: Broadcast-Vorlagen (Live-Schema: title, message_text, created_by_admin_id)
+-- 10. Optional: Broadcast-Vorlagen (Live-Schema: title, message_text, created_by_admin_id)
 -- ----------------------------------------------------------------------------
 
 -- Live-Schema: broadcast_templates(id, rallye_id, title, message_text, created_by_admin_id, created_at)
@@ -211,7 +223,7 @@ VALUES
 COMMIT;
 
 -- ----------------------------------------------------------------------------
--- 10. Hinweise
+-- 11. Hinweise
 -- ----------------------------------------------------------------------------
 
 -- Dieses Seed-Skript erstellt eine vollstaendige Test-Rallye.
@@ -229,4 +241,5 @@ COMMIT;
 -- DELETE FROM suspects WHERE rallye_id = 1;
 -- DELETE FROM team_progress WHERE team_id IN (SELECT id FROM teams WHERE rallye_id = 1);
 -- DELETE FROM teams WHERE rallye_id = 1;
+-- DELETE FROM start_codes WHERE rallye_id = 1;
 -- DELETE FROM rallyes WHERE id = 1;
