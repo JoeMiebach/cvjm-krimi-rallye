@@ -13,6 +13,14 @@
 // NEU (11.09.2026, entdeckt): Chat markiert Station als "entdeckt" (discovered_at),
 // damit sie in der Stations-Liste mit "🔒 verschlossen" angezeigt werden kann.
 // FIX (11.09.2026, 13:59): discovered_at nur setzen wenn Spalte existiert
+//
+// FIX (11.09.2026, 22:32, KRITISCH): Die Anklage-Sperre pruefte bisher
+// "suspects.station_id" -- diese Spalte existiert im Schema gar nicht!
+// Verdaechtige werden nicht ueber Stationen verknuepft, sondern ueber
+// story_nodes.reveals_suspect_id (ein Team "trifft" einen Verdaechtigen,
+// wenn ein bestimmter Chat-Knoten abgeschlossen wird). Die alte Query haette
+// beim Abschicken der Anklage einen 500er verursacht und das Spiel am Ende
+// unspielbar gemacht. Jetzt korrekt gegen team_story_log geprueft.
 
 require_once __DIR__ . '/../../bootstrap.php';
 requireMethod('POST');
@@ -128,21 +136,27 @@ $hasDiscoveredColumn = ($columnCheckStmt->fetch()['cnt'] ?? 0) > 0;
 if ($matchedOption && !empty($matchedOption['unlocks_station_id'])) {
     // ANKLAGE-SPERRE: Nur bei Anklage-Knoten pruefen
     if ($log['type'] === 'accusation') {
+        // FIX (22:32): Verdaechtige haben KEINE station_id -- sie werden ueber
+        // story_nodes.reveals_suspect_id an Chat-Knoten geknuepft. Pruefen,
+        // wie viele der 4 Verdaechtigen dem Team bereits per Chat enthuellt
+        // (= Knoten abgeschlossen) wurden.
         $accusationCheckStmt = $pdo->prepare("
-            SELECT COUNT(DISTINCT s.id) AS visited_count
-            FROM suspects s
-            JOIN station_unlocks su ON su.station_id = s.station_id
-            WHERE su.team_id = ? AND su.unlocked_at IS NOT NULL
+            SELECT COUNT(DISTINCT sn.reveals_suspect_id) AS revealed_count
+            FROM team_story_log tsl
+            JOIN story_nodes sn ON sn.id = tsl.node_id
+            WHERE tsl.team_id = ?
+              AND tsl.is_completed = 1
+              AND sn.reveals_suspect_id IS NOT NULL
         ");
         $accusationCheckStmt->execute([$team['id']]);
         $accusationCheck = $accusationCheckStmt->fetch();
-        $allSuspectsVisited = $accusationCheck && (int)$accusationCheck['visited_count'] >= 4;
+        $allSuspectsVisited = $accusationCheck && (int)$accusationCheck['revealed_count'] >= 4;
 
         if (!$allSuspectsVisited) {
             error_log(sprintf(
-                '[ANKLAGE-SPERRE] Team %d: Anklage verweigert, nur %d/4 Verdä¨½tigen besucht',
+                '[ANKLAGE-SPERRE] Team %d: Anklage verweigert, nur %d/4 Verdaechtige enthuellt',
                 $team['id'],
-                (int)$accusationCheck['visited_count']
+                (int)$accusationCheck['revealed_count']
             ));
         } else {
             // Station als entdeckt markieren (nicht freischalten!)
