@@ -1,62 +1,59 @@
 <?php
-// GET /api/team/chat.php - siehe 05_Technische_Spezifikation_Ermittler_Chat_v1.md
-// NEU (Phase A): Liefert den vollstaendigen Chat-Verlauf des Teams. Stellt bei
-// Bedarf zunaechst die Root-Knoten zu (erster Kontakt) und prueft anschliessend,
-// ob proaktive Knoten (Inaktivitaet/Fehlversuche) faellig sind -- alles per
-// Lazy Evaluation bei diesem Request, kein Cronjob noetig.
-// GEAENDERT (11.09.2026, Bugfix): SELECT liefert jetzt sn.media_type und
-// sn.media_url mit, da ChatScreen.jsx diese Felder fuer Audio-/Video-Clips
-// in Chat-Knoten rendert, sie bisher aber nie vom Backend geliefert wurden.
-require_once __DIR__ . '/../bootstrap.php';
+// GET /api/team/chat.php - siehe 04_API_Spezifikation_PHP.md ("Team-Endpunkte")
+// GEAENDERT (11.09.2026, 00-Bug-Fix): Optionen werden nur bei response_type='buttons'
+// geladen, nicht bei text/number/puzzle_ref/photo_ref. Sonst rendert das Frontend
+// fä¿½lschlicherweise die Options-ID (z.B. "00") statt nur das Eingabeformular.
+require_once __DIR__ . '/../../bootstrap.php';
 requireMethod('GET');
 $team = requireTeamAuth();
 
-
-deliverRootNodesIfNeeded($pdo, (int)$team['id'], (int)$team['rallye_id']);
-evaluateProactiveNodes($pdo, (int)$team['id'], (int)$team['rallye_id']);
-
-
-$stmt = $pdo->prepare(
-    "SELECT tsl.node_id, tsl.delivered_at, tsl.responded_at, tsl.team_response,
-            tsl.is_completed, tsl.attempts,
-            sn.type, sn.message_text, sn.image_url, sn.media_type, sn.media_url,
-            sn.map_latitude, sn.map_longitude,
-            sn.response_type, sn.station_id, sn.puzzle_id, sn.points
-     FROM team_story_log tsl
-     JOIN story_nodes sn ON sn.id = tsl.node_id
-     WHERE tsl.team_id = ?
+$chatStmt = $pdo->prepare(
+    "SELECT sn.id AS node_id, sn.message_text, sn.image_url, sn.media_type, sn.media_url,
+            sn.map_latitude, sn.map_longitude, sn.response_type, sn.station_id, sn.puzzle_id,
+            sn.points, tsl.delivered_at, tsl.responded_at, tsl.team_response, tsl.is_completed,
+            tsl.attempts, sn.type
+     FROM story_nodes sn
+     JOIN team_story_log tsl ON tsl.node_id = sn.id
+     WHERE tsl.team_id = ? AND sn.is_active = 1
      ORDER BY tsl.delivered_at ASC"
 );
-$stmt->execute([$team['id']]);
-$entries = $stmt->fetchAll();
+$chatStmt->execute([$team['id']]);
+$chat = $chatStmt->fetchAll();
 
-
-// Antwortoptionen fuer alle noch offenen Antwortknoten mitladen. WICHTIG:
-// correct_value wird hier bewusst NICHT selektiert, um Loesungen nicht an den
-// Client zu verraten.
-$openNodeIds = array_values(array_unique(array_map(
-    static fn ($e) => (int)$e['node_id'],
-    array_filter($entries, static fn ($e) => !$e['is_completed'] && $e['response_type'] !== 'none')
-)));
-
-
-$optionsByNode = [];
-if (!empty($openNodeIds)) {
-    $placeholders = implode(',', array_fill(0, count($openNodeIds), '?'));
-    $optStmt = $pdo->prepare(
-        "SELECT id, node_id, label FROM story_node_options WHERE node_id IN ($placeholders)"
-    );
-    $optStmt->execute($openNodeIds);
-    foreach ($optStmt->fetchAll() as $opt) {
-        $optionsByNode[(int)$opt['node_id']][] = ['id' => (int)$opt['id'], 'label' => $opt['label']];
+$result = [];
+foreach ($chat as &$entry) {
+    $options = [];
+    // Optionen nur bei buttons laden -- das ist der Fix fuer den "00"-Bug
+    if ($entry['response_type'] === 'buttons') {
+        $optStmt = $pdo->prepare(
+            "SELECT id, label, unlocks_station_id, leads_to_node_id, unlocks_suspect_id
+             FROM story_node_options
+             WHERE node_id = ?
+             ORDER BY sort_order ASC, id ASC"
+        );
+        $optStmt->execute([$entry['node_id']]);
+        $options = $optStmt->fetchAll();
     }
+    $result[] = [
+        'node_id' => (int)$entry['node_id'],
+        'delivered_at' => $entry['delivered_at'],
+        'responded_at' => $entry['responded_at'],
+        'team_response' => $entry['team_response'],
+        'is_completed' => (bool)$entry['is_completed'],
+        'attempts' => (int)$entry['attempts'],
+        'type' => $entry['type'],
+        'message_text' => $entry['message_text'],
+        'image_url' => $entry['image_url'],
+        'media_type' => $entry['media_type'],
+        'media_url' => $entry['media_url'],
+        'map_latitude' => $entry['map_latitude'],
+        'map_longitude' => $entry['map_longitude'],
+        'response_type' => $entry['response_type'],
+        'station_id' => $entry['station_id'] ? (int)$entry['station_id'] : null,
+        'puzzle_id' => $entry['puzzle_id'] ? (int)$entry['puzzle_id'] : null,
+        'points' => (int)$entry['points'],
+        'options' => $options,
+    ];
 }
 
-
-$chat = array_map(static function ($entry) use ($optionsByNode) {
-    $entry['options'] = $optionsByNode[(int)$entry['node_id']] ?? [];
-    return $entry;
-}, $entries);
-
-
-jsonResponse(200, ['success' => true, 'chat' => $chat]);
+jsonResponse(200, ['success' => true, 'chat' => $result]);
