@@ -15,7 +15,9 @@ import AvatarScreen from './screens/AvatarScreen';
 import BroadcastBanner from './components/BroadcastBanner';
 import GeofenceStatus from './components/GeofenceStatus';
 import GameStatusBanner from './components/GameStatusBanner';
+import PauseEndOverlay from './components/PauseEndOverlay';
 import BottomNav from './components/BottomNav';
+
 
 function ProtectedRoute({ children }) {
   const { status } = useAuth();
@@ -26,10 +28,12 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+
 function AppContent() {
   const { status } = useAuth();
   const location = useLocation();
   const showBottomNav = status === 'loggedIn' && location.pathname !== '/';
+
 
   return (
     <div className="min-h-screen">
@@ -51,9 +55,11 @@ function AppContent() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {showBottomNav && <BottomNav />}
+      <PauseEndOverlay />
     </div>
   );
 }
+
 
 export default function App() {
   return <GameStatusProvider><AppContent /></GameStatusProvider>;
