@@ -1,32 +1,38 @@
 <?php
-// GET /api/team/chat.php - siehe 04_API_Spezifikation_PHP.md ("Team-Endpunkte")
+// GET /api/team/chat.php
+// Kompatibilitaets-Hotfix: Es werden nur Basisfelder abgefragt, die fuer
+// den Chat zwingend vorhanden sein muessen. Optionale Phase-E/F-Spalten
+// werden als null geliefert, damit fehlende DB-Migrationen keinen 500er ausloesen.
 require_once __DIR__ . '/../../bootstrap.php';
 requireMethod('GET');
 $team = requireTeamAuth();
 
 $chatStmt = $pdo->prepare(
-    "SELECT sn.id AS node_id, sn.message_text, sn.image_url, sn.media_type, sn.media_url,
-            sn.map_latitude, sn.map_longitude, sn.response_type, sn.station_id, sn.puzzle_id,
-            sn.points, tsl.delivered_at, tsl.responded_at, tsl.team_response, tsl.is_completed,
-            tsl.attempts, sn.type
+    "SELECT sn.id AS node_id, sn.message_text, sn.image_url, sn.response_type,
+            sn.station_id, sn.puzzle_id, sn.points, tsl.delivered_at,
+            tsl.responded_at, tsl.team_response, tsl.is_completed, tsl.attempts, sn.type
      FROM story_nodes sn
      JOIN team_story_log tsl ON tsl.node_id = sn.id
      WHERE tsl.team_id = ? AND sn.is_active = 1
-     ORDER BY tsl.delivered_at ASC"
+     ORDER BY tsl.delivered_at ASC, tsl.id ASC"
 );
 $chatStmt->execute([$team['id']]);
 $chat = $chatStmt->fetchAll();
 
+$optionStmt = $pdo->prepare(
+    "SELECT id, label
+     FROM story_node_options
+     WHERE node_id = ?
+     ORDER BY id ASC"
+);
+
 $result = [];
-foreach ($chat as &$entry) {
-    $optStmt = $pdo->prepare(
-        "SELECT id, label, unlocks_station_id, leads_to_node_id, unlocks_suspect_id
-         FROM story_node_options
-         WHERE node_id = ?
-         ORDER BY id ASC"
-    );
-    $optStmt->execute([$entry['node_id']]);
-    $options = $optStmt->fetchAll();
+foreach ($chat as $entry) {
+    $options = [];
+    if ($entry['response_type'] === 'buttons') {
+        $optionStmt->execute([$entry['node_id']]);
+        $options = $optionStmt->fetchAll();
+    }
 
     $result[] = [
         'node_id' => (int)$entry['node_id'],
@@ -38,13 +44,13 @@ foreach ($chat as &$entry) {
         'type' => $entry['type'],
         'message_text' => $entry['message_text'],
         'image_url' => $entry['image_url'],
-        'media_type' => $entry['media_type'],
-        'media_url' => $entry['media_url'],
-        'map_latitude' => $entry['map_latitude'],
-        'map_longitude' => $entry['map_longitude'],
+        'media_type' => 'none',
+        'media_url' => null,
+        'map_latitude' => null,
+        'map_longitude' => null,
         'response_type' => $entry['response_type'],
-        'station_id' => $entry['station_id'] ? (int)$entry['station_id'] : null,
-        'puzzle_id' => $entry['puzzle_id'] ? (int)$entry['puzzle_id'] : null,
+        'station_id' => $entry['station_id'] !== null ? (int)$entry['station_id'] : null,
+        'puzzle_id' => $entry['puzzle_id'] !== null ? (int)$entry['puzzle_id'] : null,
         'points' => (int)$entry['points'],
         'options' => $options,
     ];
