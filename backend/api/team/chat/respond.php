@@ -16,11 +16,16 @@
 //
 // FIX (11.09.2026, 22:32, KRITISCH): Die Anklage-Sperre pruefte bisher
 // "suspects.station_id" -- diese Spalte existiert im Schema gar nicht!
-// Verdaechtige werden nicht ueber Stationen verknuepft, sondern ueber
-// story_nodes.reveals_suspect_id (ein Team "trifft" einen Verdaechtigen,
-// wenn ein bestimmter Chat-Knoten abgeschlossen wird). Die alte Query haette
-// beim Abschicken der Anklage einen 500er verursacht und das Spiel am Ende
-// unspielbar gemacht. Jetzt korrekt gegen team_story_log geprueft.
+// Jetzt korrekt gegen team_story_log + story_nodes.reveals_suspect_id.
+//
+// FIX (11.09.2026, 22:58, KRITISCH): station_unlocks.unlocked_at hatte
+// DEFAULT current_timestamp() im Schema -- dadurch wurde eine Station beim
+// blossen "Entdecken" per Chat automatisch AUCH freigeschaltet, obwohl nur
+// discovered_at gesetzt werden sollte. Voraussetzung: Migration 007 wurde
+// eingespielt (unlocked_at DEFAULT entfernt). Jetzt wird unlocked_at beim
+// Entdecken IMMER explizit auf NULL gesetzt -- ausser bei Stationen mit
+// unlock_type = 'auto', die weiterhin sofort bei Entdeckung freigeschaltet
+// werden sollen (z.B. die erste Station einer Rallye ohne echten Vor-Ort-Check).
 
 require_once __DIR__ . '/../../bootstrap.php';
 requireMethod('POST');
@@ -72,18 +77,13 @@ if ($log['response_type'] === 'buttons') {
 // FALL 2: puzzle_ref-Knoten (Antwort kommt aus PuzzlesScreen, nicht hier)
 // ---------------------------------------------------------------------
 elseif ($log['response_type'] === 'puzzle_ref') {
-    // Bei puzzle_ref-Knoten erfolgt die Antwort im separaten submit.php-Flow.
-    // Dieser Endpunkt wird nur aufgerufen, wenn das Frontend eine "Dummy"-
-    // Antwort sendet (z.B. "Raetsel geloest"-Button im Chat).
-    // Wir pruefen, ob das Puzzle bereits geloest wurde:
     $puzzleSolvedStmt = $pdo->prepare(
         "SELECT 1 FROM team_attempts WHERE team_id = ? AND puzzle_id = ? AND is_correct = 1 LIMIT 1"
     );
     $puzzleSolvedStmt->execute([$team['id'], $log['puzzle_id']]);
     $isCorrect = (bool)$puzzleSolvedStmt->fetch();
-    
+
     if ($isCorrect) {
-        // Option finden, die vom Puzzle-Node zum naechsten Knoten fuehrt
         $optStmt = $pdo->prepare(
             "SELECT * FROM story_node_options WHERE node_id = ? AND leads_to_node_id IS NOT NULL LIMIT 1"
         );
@@ -121,7 +121,6 @@ if ($log['type'] === 'accusation') {
 $unlockedNodes = [];
 $discoveredStationId = null;
 
-// Pruefen ob discovered_at-Spalte existiert (Migration 006)
 $columnCheckStmt = $pdo->query("
     SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS 
     WHERE TABLE_SCHEMA = DATABASE() 
@@ -132,14 +131,21 @@ $hasDiscoveredColumn = ($columnCheckStmt->fetch()['cnt'] ?? 0) > 0;
 
 // ---------------------------------------------------------------------
 // Station als "entdeckt" markieren (unlocks_station_id) - jetzt auch bei puzzle_ref
+// FIX (22:58): unlocked_at wird IMMER explizit gesetzt (NULL oder NOW()),
+// niemals dem DB-Default ueberlassen. Nur unlock_type = 'auto' schaltet bei
+// Entdeckung sofort frei.
 // ---------------------------------------------------------------------
 if ($matchedOption && !empty($matchedOption['unlocks_station_id'])) {
-    // ANKLAGE-SPERRE: Nur bei Anklage-Knoten pruefen
+    $targetStationId = (int)$matchedOption['unlocks_station_id'];
+
+    $stationTypeStmt = $pdo->prepare("SELECT unlock_type FROM stations WHERE id = ?");
+    $stationTypeStmt->execute([$targetStationId]);
+    $stationInfo = $stationTypeStmt->fetch();
+    $isAutoUnlock = $stationInfo && $stationInfo['unlock_type'] === 'auto';
+
+    $canDiscover = true;
+
     if ($log['type'] === 'accusation') {
-        // FIX (22:32): Verdaechtige haben KEINE station_id -- sie werden ueber
-        // story_nodes.reveals_suspect_id an Chat-Knoten geknuepft. Pruefen,
-        // wie viele der 4 Verdaechtigen dem Team bereits per Chat enthuellt
-        // (= Knoten abgeschlossen) wurden.
         $accusationCheckStmt = $pdo->prepare("
             SELECT COUNT(DISTINCT sn.reveals_suspect_id) AS revealed_count
             FROM team_story_log tsl
@@ -153,34 +159,37 @@ if ($matchedOption && !empty($matchedOption['unlocks_station_id'])) {
         $allSuspectsVisited = $accusationCheck && (int)$accusationCheck['revealed_count'] >= 4;
 
         if (!$allSuspectsVisited) {
+            $canDiscover = false;
             error_log(sprintf(
                 '[ANKLAGE-SPERRE] Team %d: Anklage verweigert, nur %d/4 Verdaechtige enthuellt',
                 $team['id'],
                 (int)$accusationCheck['revealed_count']
             ));
-        } else {
-            // Station als entdeckt markieren (nicht freischalten!)
-            if ($hasDiscoveredColumn) {
-                $stationDiscoverStmt = $pdo->prepare("
-                    INSERT INTO station_unlocks (team_id, station_id, discovered_at)
-                    VALUES (?, ?, NOW())
-                    ON DUPLICATE KEY UPDATE discovered_at = COALESCE(discovered_at, NOW())
-                ");
-                $stationDiscoverStmt->execute([$team['id'], (int)$matchedOption['unlocks_station_id']]);
-                $discoveredStationId = (int)$matchedOption['unlocks_station_id'];
-            }
         }
-    } else {
-        // Normale Station-Entdeckung (nicht Anklage)
-        if ($hasDiscoveredColumn) {
+    }
+
+    if ($canDiscover && $hasDiscoveredColumn) {
+        if ($isAutoUnlock) {
+            // Station wird sofort freigeschaltet UND als entdeckt markiert.
             $stationDiscoverStmt = $pdo->prepare("
-                INSERT INTO station_unlocks (team_id, station_id, discovered_at)
-                VALUES (?, ?, NOW())
+                INSERT INTO station_unlocks (team_id, station_id, discovered_at, unlocked_at, unlock_source)
+                VALUES (?, ?, NOW(), NOW(), 'auto')
+                ON DUPLICATE KEY UPDATE
+                    discovered_at = COALESCE(discovered_at, NOW()),
+                    unlocked_at = COALESCE(unlocked_at, NOW()),
+                    unlock_source = COALESCE(NULLIF(unlock_source, ''), 'auto')
+            ");
+        } else {
+            // Nur "entdeckt" -- unlocked_at BLEIBT NULL, bis QR-Code oder
+            // GPS-Geofence die Station tatsaechlich freischaltet.
+            $stationDiscoverStmt = $pdo->prepare("
+                INSERT INTO station_unlocks (team_id, station_id, discovered_at, unlocked_at, unlock_source)
+                VALUES (?, ?, NOW(), NULL, NULL)
                 ON DUPLICATE KEY UPDATE discovered_at = COALESCE(discovered_at, NOW())
             ");
-            $stationDiscoverStmt->execute([$team['id'], (int)$matchedOption['unlocks_station_id']]);
-            $discoveredStationId = (int)$matchedOption['unlocks_station_id'];
         }
+        $stationDiscoverStmt->execute([$team['id'], $targetStationId]);
+        $discoveredStationId = $targetStationId;
     }
 }
 
