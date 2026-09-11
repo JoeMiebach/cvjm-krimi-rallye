@@ -4,40 +4,64 @@
 --       Stationen, Puzzles, Fotos, Avataren und Anklage-Gate.
 --
 -- Voraussetzungen:
--- - Datenbank-Schema: 03_Datenbank_Schema_MySQL_MultiRallye_v4.sql ist eingespielt
+-- - Datenbank-Schema: 03_Datenbank_Schema_MySQL_MultiRallye_v3.sql ist eingespielt
 -- - Base-URL: https://deine-domain.de/api
 --
--- Stand: 11.09.2026, 04:21 Uhr (angepasst an rallyes-Schema ohne start/end time)
+-- Stand: 11.09.2026, 04:23 Uhr (angepasst an rallyes-Schema v3)
 -- ============================================================================
+
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
 
 -- ----------------------------------------------------------------------------
 -- 1. Basisdaten: Rallye und Teams
 -- ----------------------------------------------------------------------------
 
--- Hinweis: Die Tabelle `rallyes` enthaelt laut Schema nur:
--- id, name, city, status, discovery_mode, created_at
--- Es gibt KEINE Spalten start_time / end_time.
+-- Hinweis: Die Tabelle `rallyes` enthaelt laut Schema v3:
+-- id, name, city, country, description, story_intro,
+-- max_teams, time_limit_minutes, game_start_time, game_end_time, paused_at,
+-- is_game_running, is_archived, created_at, updated_at
+-- Es gibt KEINE Spalten: status, discovery_mode
 
-INSERT INTO rallyes (id, name, city, status, discovery_mode, created_at)
+INSERT INTO rallyes (
+    id, name, city, country, description, story_intro,
+    max_teams, time_limit_minutes,
+    game_start_time, game_end_time,
+    is_game_running, is_archived, created_at
+)
 VALUES (
     1,
     'Der verschwundene Viking-Schatz (Test)',
     'Schnellenbach',
-    'active',
-    'unlocked',
+    'Deutschland',
+    'Test-Rallye fuer die Viking-Schatz-Story mit Chat, Suspects und Anklage-Gate.',
+    'Ein vikingerzeitlicher Schatz ist verschwunden. Findet ihn!',
+    10,
+    120,
+    '2026-09-20 14:00:00',
+    '2026-09-20 18:00:00',
+    0,
+    0,
     NOW()
 );
 
 -- Test-Teams (Passwoerter im Klartext nur fuer Test; Produktion nutzt Hashes)
-INSERT INTO teams (id, rallye_id, name, start_code, password_hash, is_admin, created_at)
+-- Hinweis: teams.start_code ist UNIQUE und wird per FK von teams.start_code referenziert.
+-- Wir nutzen daher die start_codes-Tabelle nicht direkt, sondern setzen start_code direkt.
+-- teams.is_active ersetzt ein fiktives "status"-Feld.
+
+INSERT INTO teams (id, rallye_id, start_code, name, is_active, registered_at)
 VALUES
-    (1, 1, 'Team Alpha', 'ALPHA1', '$2y$10$TestHashAlpha123456789', 0, NOW()),
-    (2, 1, 'Team Beta',  'BETA1',  '$2y$10$TestHashBeta123456789',  0, NOW()),
-    (3, 1, 'Team Gamma', 'GAMMA1', '$2y$10$TestHashGamma123456789', 0, NOW());
+    (1, 1, 'ALPHA1', 'Team Alpha', 1, NOW()),
+    (2, 1, 'BETA1',  'Team Beta',  1, NOW()),
+    (3, 1, 'GAMMA1', 'Team Gamma', 1, NOW());
 
 -- ----------------------------------------------------------------------------
 -- 2. Suspects (Verdaechtige) mit Stationen
 -- ----------------------------------------------------------------------------
+
+-- suspects.rallye_id, suspects.station_id sind vorhanden.
+-- suspects.is_guilty markiert den Taeter.
 
 INSERT INTO suspects (id, rallye_id, name, role, clue, is_guilty, station_id, created_at)
 VALUES
@@ -51,50 +75,63 @@ VALUES
 -- 3. Stationen (inklusive GPS-Stationen und Anklage-Station)
 -- ----------------------------------------------------------------------------
 
-INSERT INTO stations (id, rallye_id, name, description, latitude, longitude, radius_meters, qr_token, points, discovery_mode, created_at)
+-- stations Spalten: id, rallye_id, title, description, story_text, qr_code,
+-- latitude, longitude, geofence_radius_meters, unlock_type, order_index, points, is_active, created_at
+
+INSERT INTO stations (
+    id, rallye_id, title, description, story_text, qr_code,
+    latitude, longitude, geofence_radius_meters, unlock_type, order_index, points, is_active, created_at
+)
 VALUES
     -- Verdacht-Stationen 1–4
-    (101, 1, 'Hafenmarkt', 'Treffpunkt der Haendler', 51.3350, 7.8200, 40, 'HAFEN1', 100, 'unlocked', NOW()),
-    (102, 1, 'Viking-Museum', 'Ausstellung zur Wikingerzeit', 51.3360, 7.8210, 40, 'MUSEUM1', 100, 'unlocked', NOW()),
-    (103, 1, 'Alte Werft', 'Historischer Schiffbau', 51.3370, 7.8220, 40, 'WERFT1', 100, 'unlocked', NOW()),
-    (104, 1, 'Leuchtturm', 'Aussichtspunkt', 51.3380, 7.8230, 40, 'TURM1', 100, 'unlocked', NOW()),
+    (101, 1, 'Hafenmarkt', 'Treffpunkt der Haendler', 'Hier trefft ihr Lars Jensen.', 'HAFEN1', 51.3350, 7.8200, 40, 'qr', 1, 100, 1, NOW()),
+    (102, 1, 'Viking-Museum', 'Ausstellung zur Wikingerzeit', 'Maren Koch zeigt euch alte Karten.', 'MUSEUM1', 51.3360, 7.8210, 40, 'qr', 2, 100, 1, NOW()),
+    (103, 1, 'Alte Werft', 'Historischer Schiffbau', 'Kapitaen Nils pfeift eine alte Melodie.', 'WERFT1', 51.3370, 7.8220, 40, 'qr', 3, 100, 1, NOW()),
+    (104, 1, 'Leuchtturm', 'Aussichtspunkt', 'Olivia fotografiert alles.', 'TURM1', 51.3380, 7.8230, 40, 'qr', 4, 100, 1, NOW()),
 
     -- GPS-Stationen (Beispiel)
-    (151, 1, 'GPS-Raetselbrunnen', 'Finde den Brunnen via GPS', 51.3340, 7.8190, 25, NULL, 150, 'unlocked', NOW()),
-    (152, 1, 'GPS-Alte Bruecke', 'Loese das Raetsel auf der Bruecke', 51.3345, 7.8195, 25, NULL, 150, 'unlocked', NOW()),
+    (151, 1, 'GPS-Raetselbrunnen', 'Finde den Brunnen via GPS', 'Der Brunnen hat 12 Stufen.', NULL, 51.3340, 7.8190, 25, 'gps', 5, 150, 1, NOW()),
+    (152, 1, 'GPS-Alte Bruecke', 'Loese das Raetsel auf der Bruecke', 'Das Jahr 1892 steht im Gelaelnder.', NULL, 51.3345, 7.8195, 25, 'gps', 6, 150, 1, NOW()),
 
     -- Finale Anklage-Station
-    (199, 1, 'Geheimer Treff', 'Hier wird der Schatz versteckt', 51.3390, 7.8240, 40, 'SCHATZ1', 500, 'locked', NOW());
+    (199, 1, 'Geheimer Treff', 'Hier wird der Schatz versteckt', 'Nur wer alle Spuren verfolgt hat, findet ihn.', 'SCHATZ1', 51.3390, 7.8240, 40, 'qr', 7, 500, 1, NOW());
 
 -- ----------------------------------------------------------------------------
 -- 4. Puzzles zu den Stationen
 -- ----------------------------------------------------------------------------
 
-INSERT INTO puzzles (id, station_id, type, question, correct_answer, hint, points, created_at)
+-- puzzles Spalten: id, station_id, type, question, hint, hint_penalty, story_clue_text,
+-- media_url, points, time_limit_seconds, max_attempts, order_index, is_active, created_at
+-- type: 'multiple_choice','text','image','audio','video','number','sequence','memory','word_scramble','treasure_hunt'
+
+INSERT INTO puzzles (
+    id, station_id, type, question, hint, hint_penalty, story_clue_text,
+    media_url, points, time_limit_seconds, max_attempts, order_index, is_active, created_at
+)
 VALUES
     -- Hafenmarkt
-    (1001, 101, 'text', 'Wie heisst der groesste Fisch auf dem Schild am Stand?', 'Lachs', 'Achte auf die Farbe des Fisches.', 50, NOW()),
+    (1001, 101, 'text', 'Wie heisst der groesste Fisch auf dem Schild am Stand?', 'Achte auf die Farbe des Fisches.', 5, 'Lars war nicht allein am Hafen.', NULL, 50, NULL, 3, 1, 1, NOW()),
     -- Viking-Museum
-    (1002, 102, 'number', 'In welchem Raum steht das Viking-Schiff? (Raumnummer)', '7', 'Die Nummer ist einstellig.', 50, NOW()),
+    (1002, 102, 'number', 'In welchem Raum steht das Viking-Schiff? (Raumnummer)', 'Die Nummer ist einstellig.', 5, 'Das Schiff ist der Schluessel.', NULL, 50, NULL, 3, 2, 1, NOW()),
     -- Alte Werft
-    (1003, 103, 'riddle', 'Was hat Zahne, kann aber nicht beissen? (Loesungswort)', 'Kamm', 'Es liegt im Badezimmer.', 50, NOW()),
+    (1003, 103, 'treasure_hunt', 'Was hat Zahne, kann aber nicht beissen? (Loesungswort)', 'Es liegt im Badezimmer.', 5, 'Nils hat etwas versteckt.', NULL, 50, NULL, 3, 3, 1, NOW()),
     -- Leuchtturm
-    (1004, 104, 'photo_ref', 'Fotografiere das Wappen am Eingang', NULL, 'Das Wappen ist rund und golden.', 50, NOW()),
+    (1004, 104, 'treasure_hunt', 'Fotografiere das Wappen am Eingang', 'Das Wappen ist rund und golden.', 5, 'Olivia hat den Schatz gesehen.', NULL, 50, NULL, 3, 4, 1, NOW()),
 
     -- GPS-Raetselbrunnen
-    (1005, 151, 'number', 'Wie viele Stufen hat der Brunnen?', '12', 'Zaehle sorgfaeltig.', 75, NOW()),
+    (1005, 151, 'number', 'Wie viele Stufen hat der Brunnen?', 'Zaehle sorgfaeltig.', 5, 'Der Brunnen zeigt den Weg.', NULL, 75, NULL, 3, 5, 1, NOW()),
     -- GPS-Alte Bruecke
-    (1006, 152, 'text', 'Welches Jahr steht im Gelaelnder eingraviert?', '1892', 'Es ist eine vierstellige Zahl.', 75, NOW()),
+    (1006, 152, 'text', 'Welches Jahr steht im Gelaelnder eingraviert?', 'Es ist eine vierstellige Zahl.', 5, 'Die Bruecke verbindet Alt und Neu.', NULL, 75, NULL, 3, 6, 1, NOW()),
 
     -- Geheimer Treff (Finale)
-    (1007, 199, 'text', 'Wer hat den Schatz gestohlen? (Vorname Nachname)', 'Der wahre Dieb', 'Nur wer alle Spuren verfolgt hat, kennt die Antwort.', 200, NOW());
+    (1007, 199, 'text', 'Wer hat den Schatz gestohlen? (Vorname Nachname)', 'Nur wer alle Spuren verfolgt hat, kennt die Antwort.', 5, 'Der wahre Dieb handelt im Verborgenen.', NULL, 200, NULL, 3, 7, 1, NOW());
 
 -- ----------------------------------------------------------------------------
 -- 5. Story-Chat-Knoten (Ermittler-Chat mit Anklage-Gate)
 -- ----------------------------------------------------------------------------
 
--- Hilfsvariable: Wir nutzen explizite IDs, damit die Abhaengigkeiten klar sind.
--- response_type: 'none' = Info, 'buttons' = Auswahl, 'text'/'number'/'riddle'/'photo_ref' = Eingabe
+-- story_nodes Spalten: id, rallye_id, type, message_text, image_url, media_type, media_url,
+-- map_latitude, map_longitude, response_type, station_id, puzzle_id, points, created_at
 
 INSERT INTO story_nodes (
     id, rallye_id, type, message_text, image_url, media_type, media_url,
@@ -141,6 +178,8 @@ INSERT INTO story_nodes (
 -- 6. Story-Node-Optionen (Buttons)
 -- ----------------------------------------------------------------------------
 
+-- story_node_options Spalten: id, node_id, label, target_node_id, created_at
+
 INSERT INTO story_node_options (id, node_id, label, target_node_id, created_at)
 VALUES
     -- Optionen fuer Knoten 3 (erster Verdachtiger)
@@ -185,11 +224,13 @@ WHERE rallye_id = 1;
 -- 8. Optional: Broadcast-Vorlagen
 -- ----------------------------------------------------------------------------
 
-INSERT INTO broadcast_templates (id, rallye_id, message_text, created_at)
+-- broadcasts Spalten: id, rallye_id, message_text, sent_by_admin_id, target_team_ids, sent_at, is_active
+
+INSERT INTO broadcasts (id, rallye_id, message_text, sent_by_admin_id, target_team_ids, sent_at, is_active)
 VALUES
-    (1, 1, 'Achtung! Die Rallye startet in 10 Minuten!', NOW()),
-    (2, 1, 'Hinweis: Achtet auf die gelben Schilder an den Stationen.', NOW()),
-    (3, 1, 'Letzte 30 Minuten! Gebt alles!', NOW());
+    (1, 1, 'Achtung! Die Rallye startet in 10 Minuten!', NULL, NULL, NOW(), 1),
+    (2, 1, 'Hinweis: Achtet auf die gelben Schilder an den Stationen.', NULL, NULL, NOW(), 1),
+    (3, 1, 'Letzte 30 Minuten! Gebt alles!', NULL, NULL, NOW(), 1);
 
 -- ----------------------------------------------------------------------------
 -- 9. Hinweise
@@ -202,7 +243,7 @@ VALUES
 -- - Die Pruefung "4 Verdachtige besucht" erfolgt in /team/chat/respond.php.
 --
 -- Zum Zuruecksetzen:
--- DELETE FROM broadcast_templates WHERE rallye_id = 1;
+-- DELETE FROM broadcasts WHERE rallye_id = 1;
 -- DELETE FROM team_story_log WHERE team_id IN (SELECT id FROM teams WHERE rallye_id = 1);
 -- DELETE FROM story_node_options WHERE node_id IN (SELECT id FROM story_nodes WHERE rallye_id = 1);
 -- DELETE FROM story_nodes WHERE rallye_id = 1;
@@ -211,3 +252,5 @@ VALUES
 -- DELETE FROM suspects WHERE rallye_id = 1;
 -- DELETE FROM teams WHERE rallye_id = 1;
 -- DELETE FROM rallyes WHERE id = 1;
+
+SET FOREIGN_KEY_CHECKS = 1;
