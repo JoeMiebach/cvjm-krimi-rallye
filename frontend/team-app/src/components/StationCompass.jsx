@@ -1,5 +1,5 @@
 // team-app/src/components/StationCompass.jsx
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useGeofence } from '../context/GeofenceContext';
 
 function toRad(deg) { return (deg * Math.PI) / 180; }
@@ -36,12 +36,25 @@ function smoothHeading(newHeading, prevHeadingsRef, windowSize = 3) {
   return sum / history.length;
 }
 
+// Berechnet den kuerzesten Rotationsweg zwischen zwei Winkeln.
+// Gibt einen Wert im Bereich [-180, 180] zurueck, der angibt,
+// wie weit und in welche Richtung (positiv = Uhrzeigersinn,
+// negativ = gegen Uhrzeigersinn) gedreht werden muss.
+function shortestAngleDiff(from, to) {
+  let diff = to - from;
+  // Normalisiere auf [-180, 180]
+  while (diff > 180) diff -= 360;
+  while (diff < -180) diff += 360;
+  return diff;
+}
+
 export default function StationCompass({ station }) {
   const { lastPosition, permissionState } = useGeofence();
   const [heading, setHeading] = useState(null);
   const [needsCompassPermission, setNeedsCompassPermission] = useState(false);
   const prevHeadingsRef = useRef([]);
   const lastValidHeadingRef = useRef(null);
+  const prevArrowRotationRef = useRef(0);
 
   useEffect(() => {
     function handleOrientation(event) {
@@ -106,7 +119,13 @@ export default function StationCompass({ station }) {
 
   const distance = haversineDistanceMeters(lastPosition.latitude, lastPosition.longitude, Number(station.latitude), Number(station.longitude));
   const targetBearing = bearingDegrees(lastPosition.latitude, lastPosition.longitude, Number(station.latitude), Number(station.longitude));
-  const arrowRotation = heading !== null ? targetBearing - heading : targetBearing;
+  
+  const rawArrowRotation = heading !== null ? targetBearing - heading : targetBearing;
+  // Shortest-Angle-Interpolation: kuerzesten Weg vom vorherigen zum neuen Winkel berechnen
+  const angleDiff = shortestAngleDiff(prevArrowRotationRef.current, rawArrowRotation);
+  const arrowRotation = prevArrowRotationRef.current + angleDiff;
+  prevArrowRotationRef.current = arrowRotation;
+
   const withinRadius = station.geofence_radius_meters && distance <= Number(station.geofence_radius_meters);
 
   return (
