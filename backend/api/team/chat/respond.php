@@ -1,13 +1,15 @@
 <?php
 // POST /api/team/chat/respond.php
-// GEAENDERT (11.09.2026, Bugfix): nach jedem Antwortversuch wird jetzt
-// team_progress.last_activity aktualisiert. Vorher wurde dieses Feld nur
-// beim Loesen klassischer Raetsel (team_attempts-Trigger) gesetzt: in einem
-// rein chat-nativen Szenario (keine team_attempts-Eintraege) blieb
-// last_activity dauerhaft NULL, wodurch der 'inactivity'-Proaktiv-Trigger in
-// evaluateProactiveNodes() (lib/story.php) niemals haette feuern koennen.
-// GEAENDERT (11.09.2026, Anklage-Sperre): Die Anklage-Station wird erst
-// freigeschaltet, wenn das Team ALLE 4 Verdä±½tigen besucht hat (AND-Gate).
+//
+// FIX (11.09.2026, Puzzle-Progression): Bei 'puzzle_ref'-Knoten wird jetzt
+// der nächste Knoten korrekt ausgel\u00f6st, auch wenn es keine story_node_options-
+// Zeile mit 'correct_value' gibt. Die Progression liegt jetzt in der Option
+// mit leads_to_node_id, die beim Puzzle-Node angelegt wird.
+//
+// FIX (11.09.2026, unlocks_station_id): Station-Freischaltung funktioniert
+// jetzt auch bei 'puzzle_ref'-Knoten, da die Option mit unlocks_station_id
+// jetzt vom Puzzle-Node selbst gelesen wird (nicht nur von Button-Optionen).
+
 require_once __DIR__ . '/../../bootstrap.php';
 requireMethod('POST');
 $team = requireTeamAuth();
@@ -18,7 +20,7 @@ requireFields($body, ['node_id', 'response']);
 $nodeId = (int)$body['node_id'];
 $response = (string)$body['response'];
 
-$logStmt = $pdo->prepare("SELECT tsl.id AS log_id, tsl.is_completed, tsl.attempts, sn.type, sn.response_type, sn.points FROM team_story_log tsl JOIN story_nodes sn ON sn.id = tsl.node_id WHERE tsl.team_id = ? AND tsl.node_id = ?");
+$logStmt = $pdo->prepare("SELECT tsl.id AS log_id, tsl.is_completed, tsl.attempts, sn.type, sn.response_type, sn.points, sn.puzzle_id FROM team_story_log tsl JOIN story_nodes sn ON sn.id = tsl.node_id WHERE tsl.team_id = ? AND tsl.node_id = ?");
 $logStmt->execute([$team['id'], $nodeId]);
 $log = $logStmt->fetch();
 if (!$log) jsonError(404, 'Dieser Knoten wurde diesem Team noch nicht zugestellt');
@@ -32,79 +34,128 @@ $pdo->prepare("UPDATE team_progress SET last_activity = NOW() WHERE team_id = ?"
 $isCorrect = false;
 $matchedOption = null;
 $accusationReactionText = null;
-$teamResponseValue = $response; // Default: Text/Zahl-Eingabe
+$teamResponseValue = $response;
 
+// ---------------------------------------------------------------------
+// FALL 1: Button-Antwort (normale Info/Twist/Accusation-Knoten)
+// ---------------------------------------------------------------------
 if ($log['response_type'] === 'buttons') {
-  $optStmt = $pdo->prepare("SELECT * FROM story_node_options WHERE id = ? AND node_id = ?");
-  $optStmt->execute([(int)$response, $nodeId]);
-  $matchedOption = $optStmt->fetch();
-  if ($matchedOption) {
-    $teamResponseValue = $matchedOption['label']; // Speichere Label statt ID
-    if ($log['type'] === 'accusation') {
-      $suspectStmt = $pdo->prepare("SELECT is_guilty, wrong_pick_reaction_text FROM suspects WHERE id = ?");
-      $suspectStmt->execute([(int)$matchedOption['unlocks_suspect_id']]);
-      $suspect = $suspectStmt->fetch();
-      $isCorrect = $suspect && (bool)$suspect['is_guilty'];
-      if ($suspect && !$isCorrect) $accusationReactionText = $suspect['wrong_pick_reaction_text'];
-    } else {
-      $isCorrect = true;
+    $optStmt = $pdo->prepare("SELECT * FROM story_node_options WHERE id = ? AND node_id = ?");
+    $optStmt->execute([(int)$response, $nodeId]);
+    $matchedOption = $optStmt->fetch();
+    if ($matchedOption) {
+        $teamResponseValue = $matchedOption['label'];
+        if ($log['type'] === 'accusation') {
+            $suspectStmt = $pdo->prepare("SELECT is_guilty, wrong_pick_reaction_text FROM suspects WHERE id = ?");
+            $suspectStmt->execute([(int)$matchedOption['unlocks_suspect_id']]);
+            $suspect = $suspectStmt->fetch();
+            $isCorrect = $suspect && (bool)$suspect['is_guilty'];
+            if ($suspect && !$isCorrect) $accusationReactionText = $suspect['wrong_pick_reaction_text'];
+        } else {
+            $isCorrect = true;
+        }
     }
-  }
-} else {
-  $optStmt = $pdo->prepare("SELECT * FROM story_node_options WHERE node_id = ? AND correct_value IS NOT NULL AND LOWER(TRIM(correct_value)) = LOWER(TRIM(?))");
-  $optStmt->execute([$nodeId, $response]);
-  $matchedOption = $optStmt->fetch();
-  $isCorrect = (bool)$matchedOption;
+}
+// ---------------------------------------------------------------------
+// FALL 2: puzzle_ref-Knoten (Antwort kommt aus PuzzlesScreen, nicht hier)
+// ---------------------------------------------------------------------
+elseif ($log['response_type'] === 'puzzle_ref') {
+    // Bei puzzle_ref-Knoten erfolgt die Antwort im separaten submit.php-Flow.
+    // Dieser Endpunkt wird nur aufgerufen, wenn das Frontend eine "Dummy"-
+    // Antwort sendet (z.B. "Rä¿½tsel gel\u00f6st"-Button im Chat).
+    // Wir prüfen, ob das Puzzle bereits gel\u00f6st wurde:
+    $puzzleSolvedStmt = $pdo->prepare(
+        "SELECT 1 FROM team_attempts WHERE team_id = ? AND puzzle_id = ? AND is_correct = 1 LIMIT 1"
+    );
+    $puzzleSolvedStmt->execute([$team['id'], $log['puzzle_id']]);
+    $isCorrect = (bool)$puzzleSolvedStmt->fetch();
+    
+    if ($isCorrect) {
+        // Option finden, die vom Puzzle-Node zum nächsten Knoten führt
+        $optStmt = $pdo->prepare(
+            "SELECT * FROM story_node_options WHERE node_id = ? AND leads_to_node_id IS NOT NULL LIMIT 1"
+        );
+        $optStmt->execute([$nodeId]);
+        $matchedOption = $optStmt->fetch();
+        $teamResponseValue = 'Puzzle gel\u00f6st';
+    }
+}
+// ---------------------------------------------------------------------
+// FALL 3: Text/Zahl-Antwort (normale answer-Knoten)
+// ---------------------------------------------------------------------
+else {
+    $optStmt = $pdo->prepare("SELECT * FROM story_node_options WHERE node_id = ? AND correct_value IS NOT NULL AND LOWER(TRIM(correct_value)) = LOWER(TRIM(?))");
+    $optStmt->execute([$nodeId, $response]);
+    $matchedOption = $optStmt->fetch();
+    $isCorrect = (bool)$matchedOption;
 }
 
 if (!$isCorrect) {
-  jsonResponse(200, ['success' => true, 'is_correct' => false, 'reaction_text' => $accusationReactionText]);
+    jsonResponse(200, ['success' => true, 'is_correct' => false, 'reaction_text' => $accusationReactionText]);
 }
 
 $pdo->prepare("UPDATE team_story_log SET is_completed = 1, responded_at = NOW(), team_response = ? WHERE id = ?")->execute([$teamResponseValue, $log['log_id']]);
 
 $bonusAwarded = false;
 if ($log['type'] === 'accusation') {
-  if ($attempts === 1) {
-    awardStoryPoints($pdo, (int)$team['id'], (int)$log['points']);
-    $bonusAwarded = true;
-  }
+    if ($attempts === 1) {
+        awardStoryPoints($pdo, (int)$team['id'], (int)$log['points']);
+        $bonusAwarded = true;
+    }
 } elseif ((int)$log['points'] > 0) {
-  awardStoryPoints($pdo, (int)$team['id'], (int)$log['points']);
+    awardStoryPoints($pdo, (int)$team['id'], (int)$log['points']);
 }
 
 $unlockedNodes = [];
 $unlockedStationId = null;
-if ($matchedOption) {
-  // ANKLAGE-SPERRE: Station wird erst freigeschaltet, wenn alle 4 Verdä±½tigen besucht wurden
-  if (!empty($matchedOption['unlocks_station_id'])) {
-    $accusationCheckStmt = $pdo->prepare("
-      SELECT COUNT(DISTINCT s.id) AS visited_count
-      FROM suspects s
-      JOIN station_unlocks su ON su.station_id = s.station_id
-      WHERE su.team_id = ? AND su.unlock_source = 'chat'
-    ");
-    $accusationCheckStmt->execute([$team['id']]);
-    $accusationCheck = $accusationCheckStmt->fetch();
-    $allSuspectsVisited = $accusationCheck && (int)$accusationCheck['visited_count'] >= 4;
 
-    if ($log['type'] === 'accusation' && !$allSuspectsVisited) {
-      // Anklage-Station wird NICHT freigeschaltet -- Team muss erst alle Verdä±½tigen besuchen
-      error_log(sprintf(
-        '[ANKLAGE-SPERRE] Team %d: Anklage verweigert, nur %d/4 Verdä±½tigen besucht',
-        $team['id'],
-        (int)$accusationCheck['visited_count']
-      ));
+// ---------------------------------------------------------------------
+// Station-Freischaltung (unlocks_station_id) - jetzt auch bei puzzle_ref
+// ---------------------------------------------------------------------
+if ($matchedOption && !empty($matchedOption['unlocks_station_id'])) {
+    // ANKLAGE-SPERRE: Nur bei Anklage-Knoten prüfen
+    if ($log['type'] === 'accusation') {
+        $accusationCheckStmt = $pdo->prepare("
+            SELECT COUNT(DISTINCT s.id) AS visited_count
+            FROM suspects s
+            JOIN station_unlocks su ON su.station_id = s.station_id
+            WHERE su.team_id = ? AND su.unlock_source = 'chat'
+        ");
+        $accusationCheckStmt->execute([$team['id']]);
+        $accusationCheck = $accusationCheckStmt->fetch();
+        $allSuspectsVisited = $accusationCheck && (int)$accusationCheck['visited_count'] >= 4;
+
+        if (!$allSuspectsVisited) {
+            error_log(sprintf(
+                '[ANKLAGE-SPERRE] Team %d: Anklage verweigert, nur %d/4 Verd\u00e4chtigen besucht',
+                $team['id'],
+                (int)$accusationCheck['visited_count']
+            ));
+        } else {
+            $stationUnlockStmt = $pdo->prepare("INSERT IGNORE INTO station_unlocks (team_id, station_id, unlock_source) VALUES (?, ?, 'chat')");
+            $stationUnlockStmt->execute([$team['id'], (int)$matchedOption['unlocks_station_id']]);
+            $unlockedStationId = (int)$matchedOption['unlocks_station_id'];
+        }
     } else {
-      $stationUnlockStmt = $pdo->prepare("INSERT IGNORE INTO station_unlocks (team_id, station_id, unlock_source) VALUES (?, ?, 'chat')");
-      $stationUnlockStmt->execute([$team['id'], (int)$matchedOption['unlocks_station_id']]);
-      $unlockedStationId = (int)$matchedOption['unlocks_station_id'];
+        // Normale Station-Freischaltung (nicht Anklage)
+        $stationUnlockStmt = $pdo->prepare("INSERT IGNORE INTO station_unlocks (team_id, station_id, unlock_source) VALUES (?, ?, 'chat')");
+        $stationUnlockStmt->execute([$team['id'], (int)$matchedOption['unlocks_station_id']]);
+        $unlockedStationId = (int)$matchedOption['unlocks_station_id'];
     }
-  }
-  if ($matchedOption['leads_to_node_id']) {
-    deliverNode($pdo, (int)$team['id'], (int)$matchedOption['leads_to_node_id']);
-    $unlockedNodes[] = (int)$matchedOption['leads_to_node_id'];
-  }
 }
 
-jsonResponse(200, ['success' => true, 'is_correct' => true, 'bonus_awarded' => $bonusAwarded, 'unlocked_nodes' => $unlockedNodes, 'unlocked_station_id' => $unlockedStationId]);
+// ---------------------------------------------------------------------
+// Nächsten Knoten zustellen (leads_to_node_id)
+// ---------------------------------------------------------------------
+if ($matchedOption && $matchedOption['leads_to_node_id']) {
+    deliverNode($pdo, (int)$team['id'], (int)$matchedOption['leads_to_node_id']);
+    $unlockedNodes[] = (int)$matchedOption['leads_to_node_id'];
+}
+
+jsonResponse(200, [
+    'success' => true,
+    'is_correct' => true,
+    'bonus_awarded' => $bonusAwarded,
+    'unlocked_nodes' => $unlockedNodes,
+    'unlocked_station_id' => $unlockedStationId
+]);

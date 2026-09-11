@@ -1,20 +1,21 @@
 <?php
-// POST /api/puzzles/submit.php - siehe 04_API_Spezifikation_PHP_v3.md ("Team-Endpunkte")
+// POST /api/puzzles/submit.php
 //
-// KORRIGIERT (09.09.2026): Nutzt puzzles.story_clue_text (nicht stations.story_text)
-// als Quelle des Story-Hinweises, gemaess echtem DB-Schema (verifiziert gegen
-// Live-Dump dbs16076643.sql vom 09.09.2026). Bei richtiger Antwort wird der
-// Hinweis (a) sofort als "story_clue" in der Response mitgeliefert (Popup in
-// PuzzlesScreen.jsx) UND (b) dauerhaft in team_story_clues gespeichert, damit
-// er in der Ermittlungsakte (GET /team/clues.php) fuer immer sichtbar bleibt --
-// auch nach Reload/Re-Login. Siehe 00_Project_Brief_Entscheidungslog_v3.md,
-// Entschiedene Punkte (v3), Punkt 14.
+// FIX (11.09.2026): Nach korrekter Puzzle-Antwort wird jetzt der nächste
+// Chat-Knoten ausgel\u00f6st (deliverNode), damit das Spiel nach dem L\u00f6sen eines
+// Puzzles im Chat weitergeht. Vorher war submit.php ein separater Pfad ohne
+// Chat-Progression, wodurch Teams nach dem ersten Puzzle "stuck" waren.
+//
+// Logik:
+// 1. Puzzle l\u00f6sen wie bisher (team_attempts, Punkte, story_clue)
+// 2. Story_Node finden, das dieses Puzzle referenziert (response_type='puzzle_ref')
+// 3. Nächsten Knoten aus story_node_options ermitteln (leads_to_node_id)
+// 4. deliverNode() aufrufen, um den Folge-Knoten zuzustellen
+// 5. Im Response 'next_node_id' zurückgeben (Frontend kann direkt zum Chat springen)
+
 require_once __DIR__ . '/../bootstrap.php';
 requireMethod('POST');
 $team = requireTeamAuth();
-
-// Verhindert Raetsel-Einreichungen, waehrend das Spiel pausiert oder noch
-// nicht gestartet ist. Muss vor jeder weiteren Logik geprueft werden.
 requireGameRunning($pdo, (int)$team['rallye_id']);
 
 $body = getJsonBody();
@@ -34,7 +35,7 @@ $stmt = $pdo->prepare(
 $stmt->execute([$puzzleId, $team['rallye_id']]);
 $puzzle = $stmt->fetch();
 if (!$puzzle) {
-    jsonError(404, 'Rätsel nicht gefunden');
+    jsonError(404, 'R\u00e4tsel nicht gefunden');
 }
 
 $unlockStmt = $pdo->prepare("SELECT 1 FROM station_unlocks WHERE team_id = ? AND station_id = ?");
@@ -50,12 +51,12 @@ $countStmt->execute([$team['id'], $puzzleId]);
 $agg = $countStmt->fetch();
 
 if ((bool)$agg['solved']) {
-    jsonError(409, 'Rätsel bereits gelöst');
+    jsonError(409, 'R\u00e4tsel bereits gel\u00f6st');
 }
 
 $attemptsUsed = (int)$agg['cnt'];
 if ($attemptsUsed >= (int)$puzzle['max_attempts']) {
-    jsonError(400, 'Keine weiteren Versuche möglich');
+    jsonError(400, 'Keine weiteren Versuche m\u00f6glich');
 }
 
 $answerStmt = $pdo->prepare(
@@ -78,13 +79,14 @@ $insert->execute([
     $team['id'], $puzzleId, $attemptNumber, $answer, $isCorrect ? 1 : 0, $pointsEarned, $hintUsed ? 1 : 0,
 ]);
 
+// ---------------------------------------------------------------------
+// FIX: Chat-Progression nach korrekter Puzzle-Antwort
+// ---------------------------------------------------------------------
+$nextNodeId = null;
 if ($isCorrect) {
     $storyClue = $puzzle['story_clue_text'] ?? null;
 
-    // Dauerhaft in der Ermittlungsakte speichern, falls dieses Raetsel einen
-    // Story-Hinweis traegt (bei Bonus-Raetseln bleibt story_clue_text NULL,
-    // dann passiert hier bewusst nichts). ON DUPLICATE KEY UPDATE ist reine
-    // Verteidigung gegen Doppel-Submits, da team_id+puzzle_id UNIQUE ist.
+    // Dauerhaft in der Ermittlungsakte speichern
     if ($storyClue !== null && $storyClue !== '') {
         $clueInsert = $pdo->prepare(
             "INSERT INTO team_story_clues (team_id, puzzle_id, story_clue_text)
@@ -94,12 +96,40 @@ if ($isCorrect) {
         $clueInsert->execute([$team['id'], $puzzleId, $storyClue]);
     }
 
+    // Nächsten Chat-Knoten ermitteln:
+    // 1. Story_Node finden, das dieses Puzzle referenziert (response_type='puzzle_ref')
+    // 2. Story_Node-Option mit leads_to_node_id finden
+    $storyNodeStmt = $pdo->prepare(
+        "SELECT id FROM story_nodes
+         WHERE puzzle_id = ? AND response_type = 'puzzle_ref' AND rallye_id = ?
+         LIMIT 1"
+    );
+    $storyNodeStmt->execute([$puzzleId, $team['rallye_id']]);
+    $storyNode = $storyNodeStmt->fetch();
+
+    if ($storyNode) {
+        $optionStmt = $pdo->prepare(
+            "SELECT leads_to_node_id FROM story_node_options
+             WHERE node_id = ? AND leads_to_node_id IS NOT NULL
+             LIMIT 1"
+        );
+        $optionStmt->execute([$storyNode['id']]);
+        $option = $optionStmt->fetch();
+
+        if ($option && $option['leads_to_node_id']) {
+            $nextNodeId = (int)$option['leads_to_node_id'];
+            // Knoten zustellen (deliverNode aus lib/story.php)
+            deliverNode($pdo, (int)$team['id'], $nextNodeId);
+        }
+    }
+
     jsonResponse(200, [
         'success' => true,
         'is_correct' => true,
         'points_earned' => $pointsEarned,
         'message' => 'Richtig! +' . $pointsEarned . ' Punkte',
         'story_clue' => ($storyClue !== null && $storyClue !== '') ? $storyClue : null,
+        'next_node_id' => $nextNodeId, // Frontend kann damit direkt zum Chat springen
     ]);
 }
 
