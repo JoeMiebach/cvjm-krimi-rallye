@@ -9,8 +9,15 @@
 // Team ausgeliefert (deliverNode() ruft sich fuer jede Option rekursiv selbst
 // auf). Bei allen anderen response_type-Werten sind die Optionen echte,
 // sichtbare Buttons, auf die das Team aktiv reagieren muss.
+//
+// FIX (11.09.2026): Bei Info-Knoten werden jetzt auch alle unlocks_station_id-
+// Optionen automatisch freigeschaltet (Fog-of-War: Stationen erscheinen erst auf
+// der Karte, wenn der Chat sie freigibt). Das war vorher nur bei Button-Antworten
+// in respond.php implementiert, aber nicht bei automatischen Info-Kaskaden.
+
 
 declare(strict_types=1);
+
 
 function deliverNode(PDO $pdo, int $teamId, int $nodeId): void
 {
@@ -20,6 +27,7 @@ function deliverNode(PDO $pdo, int $teamId, int $nodeId): void
         return; // Bereits zugestellt -- keine erneute Kaskade, verhindert Endlosschleifen.
     }
 
+
     $nodeStmt = $pdo->prepare("SELECT * FROM story_nodes WHERE id = ? AND is_active = 1");
     $nodeStmt->execute([$nodeId]);
     $node = $nodeStmt->fetch();
@@ -27,36 +35,54 @@ function deliverNode(PDO $pdo, int $teamId, int $nodeId): void
         return;
     }
 
+
     $isInfoNode = $node['response_type'] === 'none';
+
 
     $insert = $pdo->prepare(
         "INSERT INTO team_story_log (team_id, node_id, is_completed) VALUES (?, ?, ?)"
     );
     $insert->execute([$teamId, $nodeId, $isInfoNode ? 1 : 0]);
 
+
     if ($isInfoNode) {
         if ((int)$node['points'] > 0) {
             awardStoryPoints($pdo, $teamId, (int)$node['points']);
         }
 
+
         // Info-Knoten schalten ALLE ihre Optionen sofort und automatisch frei --
         // das ist der Mechanismus fuer "mehrere parallele Leads ohne Auswahl-Zwang".
         $optionsStmt = $pdo->prepare(
-            "SELECT leads_to_node_id FROM story_node_options
-             WHERE node_id = ? AND leads_to_node_id IS NOT NULL"
+            "SELECT leads_to_node_id, unlocks_station_id FROM story_node_options
+             WHERE node_id = ? AND (leads_to_node_id IS NOT NULL OR unlocks_station_id IS NOT NULL)"
         );
         $optionsStmt->execute([$nodeId]);
         foreach ($optionsStmt->fetchAll() as $option) {
-            deliverNode($pdo, $teamId, (int)$option['leads_to_node_id']);
+            // FIX: Station-Freischaltung bei Info-Knoten
+            if (!empty($option['unlocks_station_id'])) {
+                $unlockStmt = $pdo->prepare(
+                    "INSERT IGNORE INTO station_unlocks (team_id, station_id, unlock_source)
+                     VALUES (?, ?, 'chat')"
+                );
+                $unlockStmt->execute([$teamId, (int)$option['unlocks_station_id']]);
+            }
+            
+            // Kaskade zum naechsten Knoten
+            if (!empty($option['leads_to_node_id'])) {
+                deliverNode($pdo, $teamId, (int)$option['leads_to_node_id']);
+            }
         }
     }
 }
+
 
 function awardStoryPoints(PDO $pdo, int $teamId, int $points): void
 {
     $stmt = $pdo->prepare("UPDATE team_progress SET total_points = total_points + ? WHERE team_id = ?");
     $stmt->execute([$points, $teamId]);
 }
+
 
 function deliverRootNodesIfNeeded(PDO $pdo, int $teamId, int $rallyeId): void
 {
@@ -66,6 +92,7 @@ function deliverRootNodesIfNeeded(PDO $pdo, int $teamId, int $rallyeId): void
         return;
     }
 
+
     $roots = $pdo->prepare(
         "SELECT id FROM story_nodes WHERE rallye_id = ? AND is_root = 1 AND is_active = 1"
     );
@@ -74,6 +101,7 @@ function deliverRootNodesIfNeeded(PDO $pdo, int $teamId, int $rallyeId): void
         deliverNode($pdo, $teamId, (int)$root['id']);
     }
 }
+
 
 // Proaktive Knoten: werden automatisch zugestellt, sobald ihre Bedingung erfuellt ist,
 // OHNE dass das Team etwas tun muss. Wird bei jedem GET /team/chat.php-Poll geprueft
@@ -95,6 +123,7 @@ function evaluateProactiveNodes(PDO $pdo, int $teamId, int $rallyeId): void
     foreach ($inactivity->fetchAll() as $row) {
         deliverNode($pdo, $teamId, (int)$row['id']);
     }
+
 
     $wrongAttempts = $pdo->prepare(
         "SELECT sn.id FROM story_nodes sn
