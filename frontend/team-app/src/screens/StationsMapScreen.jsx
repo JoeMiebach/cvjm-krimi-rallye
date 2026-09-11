@@ -79,8 +79,12 @@ export default function StationsMapScreen() {
 
   const handleUserInteraction = useCallback(() => setFollowMode(false), []);
   const handleRecenter = useCallback(() => setFollowMode(true), []);
-  const visibleStations = stations.filter((station) => station.latitude && station.longitude && station.is_unlocked);
-  const hiddenCount = stations.length - visibleStations.length;
+
+  // NEU (11.09.2026): Zeige entdeckte (discovered) UND freigeschaltete (unlocked) Stationen
+  const visibleStations = stations.filter((station) => 
+    station.latitude && station.longitude && station.status !== 'locked'
+  );
+  const hiddenCount = stations.filter((station) => station.status === 'locked').length;
   const center = ownPosition || (visibleStations.length > 0
     ? [
         visibleStations.reduce((sum, station) => sum + Number(station.latitude), 0) / visibleStations.length,
@@ -96,8 +100,21 @@ export default function StationsMapScreen() {
       <MapContainer center={center} zoom={15} className="h-[calc(100vh-9rem)] min-h-[400px] w-full rounded-lg">
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap-Mitwirkende" />
         {visibleStations.map((station) => (
-          <CircleMarker key={station.id} center={[station.latitude, station.longitude]} radius={10} pathOptions={{ color: '#dc2626', fillColor: '#dc2626', fillOpacity: 0.6 }}>
-            <Popup>{station.title}</Popup>
+          <CircleMarker 
+            key={station.id} 
+            center={[station.latitude, station.longitude]} 
+            radius={10} 
+            pathOptions={{ 
+              color: station.status === 'unlocked' ? '#dc2626' : '#f59e0b',
+              fillColor: station.status === 'unlocked' ? '#dc2626' : '#f59e0b',
+              fillOpacity: 0.6 
+            }}
+          >
+            <Popup>
+              {station.title}
+              <br />
+              {station.status === 'unlocked' ? '✅ Freigeschaltet' : '🔒 Verschlossen'}
+            </Popup>
           </CircleMarker>
         ))}
         {ownPosition && <>
@@ -107,7 +124,7 @@ export default function StationsMapScreen() {
         <FollowController position={ownPosition} followMode={followMode} onUserInteraction={handleUserInteraction} />
         {!followMode && <RecenterButton position={ownPosition} onRecenter={handleRecenter} />}
       </MapContainer>
-      {hiddenCount > 0 && <p className="mt-2 px-2 text-xs text-gray-500">{hiddenCount} Station(en) sind noch nicht auf der Karte sichtbar.</p>}
+      {hiddenCount > 0 && <p className="mt-2 px-2 text-xs text-gray-500">{hiddenCount} Station(en) sind noch nicht entdeckt.</p>}
     </div>
   );
 }
