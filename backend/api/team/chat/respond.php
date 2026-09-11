@@ -2,13 +2,13 @@
 // POST /api/team/chat/respond.php
 //
 // FIX (11.09.2026, Puzzle-Progression): Bei 'puzzle_ref'-Knoten wird jetzt
-// der nächste Knoten korrekt ausgel\u00f6st, auch wenn es keine story_node_options-
+// der naechste Knoten korrekt ausgeloest, auch wenn es keine story_node_options-
 // Zeile mit 'correct_value' gibt. Die Progression liegt jetzt in der Option
 // mit leads_to_node_id, die beim Puzzle-Node angelegt wird.
 //
-// FIX (11.09.2026, unlocks_station_id): Station-Freischaltung funktioniert
-// jetzt auch bei 'puzzle_ref'-Knoten, da die Option mit unlocks_station_id
-// jetzt vom Puzzle-Node selbst gelesen wird (nicht nur von Button-Optionen).
+// FIX (11.09.2026, unlocks_station_id ENTFERNT): Stationen werden NICHT mehr
+// ueber Chat freigeschaltet. Freischaltung erfolgt AUSSCHLIESSLICH per QR-Code
+// oder GPS-Geofence (siehe /api/stations/unlock.php).
 
 require_once __DIR__ . '/../../bootstrap.php';
 requireMethod('POST');
@@ -62,8 +62,8 @@ if ($log['response_type'] === 'buttons') {
 elseif ($log['response_type'] === 'puzzle_ref') {
     // Bei puzzle_ref-Knoten erfolgt die Antwort im separaten submit.php-Flow.
     // Dieser Endpunkt wird nur aufgerufen, wenn das Frontend eine "Dummy"-
-    // Antwort sendet (z.B. "Rä¿½tsel gel\u00f6st"-Button im Chat).
-    // Wir prüfen, ob das Puzzle bereits gel\u00f6st wurde:
+    // Antwort sendet (z.B. "Raetsel geloest"-Button im Chat).
+    // Wir pruefen, ob das Puzzle bereits geloest wurde:
     $puzzleSolvedStmt = $pdo->prepare(
         "SELECT 1 FROM team_attempts WHERE team_id = ? AND puzzle_id = ? AND is_correct = 1 LIMIT 1"
     );
@@ -71,13 +71,13 @@ elseif ($log['response_type'] === 'puzzle_ref') {
     $isCorrect = (bool)$puzzleSolvedStmt->fetch();
     
     if ($isCorrect) {
-        // Option finden, die vom Puzzle-Node zum nächsten Knoten führt
+        // Option finden, die vom Puzzle-Node zum naechsten Knoten fuehrt
         $optStmt = $pdo->prepare(
             "SELECT * FROM story_node_options WHERE node_id = ? AND leads_to_node_id IS NOT NULL LIMIT 1"
         );
         $optStmt->execute([$nodeId]);
         $matchedOption = $optStmt->fetch();
-        $teamResponseValue = 'Puzzle gel\u00f6st';
+        $teamResponseValue = 'Puzzle geloest';
     }
 }
 // ---------------------------------------------------------------------
@@ -107,45 +107,9 @@ if ($log['type'] === 'accusation') {
 }
 
 $unlockedNodes = [];
-$unlockedStationId = null;
 
 // ---------------------------------------------------------------------
-// Station-Freischaltung (unlocks_station_id) - jetzt auch bei puzzle_ref
-// ---------------------------------------------------------------------
-if ($matchedOption && !empty($matchedOption['unlocks_station_id'])) {
-    // ANKLAGE-SPERRE: Nur bei Anklage-Knoten prüfen
-    if ($log['type'] === 'accusation') {
-        $accusationCheckStmt = $pdo->prepare("
-            SELECT COUNT(DISTINCT s.id) AS visited_count
-            FROM suspects s
-            JOIN station_unlocks su ON su.station_id = s.station_id
-            WHERE su.team_id = ? AND su.unlock_source = 'chat'
-        ");
-        $accusationCheckStmt->execute([$team['id']]);
-        $accusationCheck = $accusationCheckStmt->fetch();
-        $allSuspectsVisited = $accusationCheck && (int)$accusationCheck['visited_count'] >= 4;
-
-        if (!$allSuspectsVisited) {
-            error_log(sprintf(
-                '[ANKLAGE-SPERRE] Team %d: Anklage verweigert, nur %d/4 Verd\u00e4chtigen besucht',
-                $team['id'],
-                (int)$accusationCheck['visited_count']
-            ));
-        } else {
-            $stationUnlockStmt = $pdo->prepare("INSERT IGNORE INTO station_unlocks (team_id, station_id, unlock_source) VALUES (?, ?, 'chat')");
-            $stationUnlockStmt->execute([$team['id'], (int)$matchedOption['unlocks_station_id']]);
-            $unlockedStationId = (int)$matchedOption['unlocks_station_id'];
-        }
-    } else {
-        // Normale Station-Freischaltung (nicht Anklage)
-        $stationUnlockStmt = $pdo->prepare("INSERT IGNORE INTO station_unlocks (team_id, station_id, unlock_source) VALUES (?, ?, 'chat')");
-        $stationUnlockStmt->execute([$team['id'], (int)$matchedOption['unlocks_station_id']]);
-        $unlockedStationId = (int)$matchedOption['unlocks_station_id'];
-    }
-}
-
-// ---------------------------------------------------------------------
-// Nächsten Knoten zustellen (leads_to_node_id)
+// Naechsten Knoten zustellen (leads_to_node_id)
 // ---------------------------------------------------------------------
 if ($matchedOption && $matchedOption['leads_to_node_id']) {
     deliverNode($pdo, (int)$team['id'], (int)$matchedOption['leads_to_node_id']);
@@ -156,6 +120,6 @@ jsonResponse(200, [
     'success' => true,
     'is_correct' => true,
     'bonus_awarded' => $bonusAwarded,
-    'unlocked_nodes' => $unlockedNodes,
-    'unlocked_station_id' => $unlockedStationId
+    'unlocked_nodes' => $unlockedNodes
+    // 'unlocked_station_id' wurde entfernt - Stationen nur noch per QR/GPS
 ]);
