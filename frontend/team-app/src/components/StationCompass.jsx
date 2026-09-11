@@ -120,7 +120,10 @@ export default function StationCompass({ station }) {
   const distance = haversineDistanceMeters(lastPosition.latitude, lastPosition.longitude, Number(station.latitude), Number(station.longitude));
   const targetBearing = bearingDegrees(lastPosition.latitude, lastPosition.longitude, Number(station.latitude), Number(station.longitude));
   
-  const rawArrowRotation = heading !== null ? targetBearing - heading : targetBearing;
+  // rawArrowRotation auf [0, 360) normalisieren um 360-Wrap-Spruenge zu vermeiden
+  let rawArrowRotation = heading !== null ? targetBearing - heading : targetBearing;
+  rawArrowRotation = ((rawArrowRotation % 360) + 360) % 360;
+  
   // Shortest-Angle-Interpolation: kuerzesten Weg vom vorherigen zum neuen Winkel berechnen
   const angleDiff = shortestAngleDiff(prevArrowRotationRef.current, rawArrowRotation);
   const arrowRotation = prevArrowRotationRef.current + angleDiff;
