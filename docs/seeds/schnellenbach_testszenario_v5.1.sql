@@ -283,8 +283,13 @@ SET @node_reminder = LAST_INSERT_ID();
 -- 6. STORY_NODE_OPTIONS  (Tabelle: story_node_options)
 -- ---------------------------------------------------------------------
 
-INSERT INTO story_node_options (node_id, label, leads_to_node_id)
-VALUES (@node_intro, 'Wir sind dabei!', @node_kriegerdenkmal);
+INSERT INTO story_node_options (node_id, label, leads_to_node_id, unlocks_station_id)
+VALUES (
+  @node_intro,
+  'Wir sind dabei!',
+  @node_kriegerdenkmal,
+  @station_kriegerdenkmal
+);
 
 INSERT INTO story_node_options (node_id, leads_to_node_id)
 VALUES (@node_kriegerdenkmal, @node_nach_kriegerdenkmal);
