@@ -66,8 +66,8 @@ foreach ($stations as $station) {
 
     if ($distance <= (float)$station['geofence_radius_meters']) {
         $insert = $pdo->prepare(
-            "INSERT INTO station_unlocks (team_id, station_id, unlock_source, unlocked_at)
-             VALUES (?, ?, 'gps', NOW())
+            "INSERT INTO station_unlocks (team_id, station_id, unlock_source, unlocked_at, discovered_at)
+             VALUES (?, ?, 'gps', NOW(), NOW())
              ON DUPLICATE KEY UPDATE
                  unlock_source = COALESCE(unlock_source, 'gps'),
                  unlocked_at = COALESCE(unlocked_at, NOW())"
