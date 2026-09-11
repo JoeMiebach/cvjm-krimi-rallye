@@ -1,4 +1,14 @@
 <?php
-header('Content-Type: application/json; charset=utf-8');
-http_response_code(200);
-echo '{"success":true,"temporary":true,"stage":"static","revision":"static-diagnostic-20260911-0410"}';
+// TEMPORARY: authenticated health check for the team chat API.
+// Remove this file after production verification.
+require_once __DIR__ . '/../bootstrap.php';
+requireMethod('GET');
+$team = requireTeamAuth();
+
+jsonResponse(200, array(
+    'success' => true,
+    'temporary' => true,
+    'stage' => 'authenticated',
+    'team_id' => (int)$team['id'],
+    'rallye_id' => (int)$team['rallye_id']
+));
