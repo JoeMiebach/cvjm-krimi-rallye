@@ -8,13 +8,17 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { api } from '../api/client';
 
+
 const POLL_INTERVAL_MS = 10_000;
 
+
 const GameStatusContext = createContext(null);
+
 
 export function GameStatusProvider({ children }) {
   const { status, rallyeId } = useAuth();
   const [gameStatus, setGameStatus] = useState(null);
+
 
   useEffect(() => {
     // Ohne bekannte rallye_id (z. B. vor dem Login, oder falls login.php sie
@@ -25,6 +29,7 @@ export function GameStatusProvider({ children }) {
       setGameStatus(null);
       return;
     }
+
 
     let cancelled = false;
     async function poll() {
@@ -43,20 +48,24 @@ export function GameStatusProvider({ children }) {
     };
   }, [status, rallyeId]);
 
+
   const isGameRunning = gameStatus?.is_game_running ?? false;
   const isPaused = gameStatus?.is_paused ?? false;
   const hasStarted = gameStatus?.has_started ?? false;
+  const isGameOver = gameStatus?.is_game_over ?? false;
   // Solange gameStatus noch nicht geladen ist, gehen wir defensiv davon aus,
   // dass Aktionen NICHT erlaubt sind (canAct = false), statt Buttons kurz
-  // fälschlich aktiv zu zeigen.
-  const canAct = gameStatus !== null && isGameRunning;
+  // fä¬¶lschlich aktiv zu zeigen.
+  const canAct = gameStatus !== null && isGameRunning && !isPaused && !isGameOver;
+
 
   return (
-    <GameStatusContext.Provider value={{ status: gameStatus, isGameRunning, isPaused, hasStarted, canAct }}>
+    <GameStatusContext.Provider value={{ status: gameStatus, isGameRunning, isPaused, hasStarted, isGameOver, canAct }}>
       {children}
     </GameStatusContext.Provider>
   );
 }
+
 
 export function useGameStatus() {
   const ctx = useContext(GameStatusContext);
