@@ -3,6 +3,7 @@
 // submitPhoto() (Phase E) ergaenzt. getClues() (altes Ermittlungsakte-System)
 // entfernt.
 // NEU (Phase F, Ermittler-Chat-System): uploadAvatar() ergaenzt.
+// NEU (11.09.2026, 12:54): getCompletedTasks() für erledigte Aufgaben
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 if (!API_BASE_URL) {
@@ -114,8 +115,8 @@ export const api = {
     request('/team/check-geofence.php', { method: 'POST', body: { latitude, longitude } }),
   getPuzzles: (stationId) => request('/puzzles.php', { query: { station_id: stationId } }),
   requestHint: (puzzleId) => request('/puzzles/hint.php', { method: 'POST', body: { puzzle_id: puzzleId } }),
-  submitAnswer: (puzzleId, answer) =>
-    request('/puzzles/submit.php', { method: 'POST', body: { puzzle_id: puzzleId, answer } }),
+  submitAnswer: (puzzleId, answer, hintUsed) =>
+    request('/puzzles/submit.php', { method: 'POST', body: { puzzle_id: puzzleId, answer, hint_used: hintUsed } }),
   getProgress: () => request('/team/progress.php'),
   getLeaderboard: (rallyeId) => request('/leaderboard.php', { query: { rallye_id: rallyeId } }),
   getBroadcasts: (since) => request('/team/broadcasts.php', { query: { since } }),
@@ -125,6 +126,7 @@ export const api = {
   respondToChat: (nodeId, response) =>
     request('/team/chat/respond.php', { method: 'POST', body: { node_id: nodeId, response } }),
   getOpenTasks: () => request('/team/open-tasks.php'),
+  getCompletedTasks: () => request('/team/completed-tasks.php'),
 
   // Ermittler-Chat-System (Phase C)
   getSuspects: () => request('/team/suspects.php'),
