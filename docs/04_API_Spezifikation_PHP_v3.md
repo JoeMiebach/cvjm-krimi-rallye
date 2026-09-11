@@ -1,123 +1,57 @@
 # API-Spezifikation: Viking-Schatz Rallye (PHP / Hosting Basic) - Version 3
 
-
 **Ersetzt:** 04_API_Spezifikation_PHP.md (v2.0, bitte archivieren)
-**Stand:** 11.09.2026, 03:30 Uhr (Phase F + Bugfix-Session 11.09.2026)
-
+**Stand:** 11.09.2026, 04:18 Uhr (verifizierter Chat-500er-Fix dokumentiert)
 
 ## Basis-URL
-
 
 ```
 https://deine-domain.de/api
 ```
 
-
-## Authentifizierung (unveraendert aus v2)
-
+## Authentifizierung
 
 `Authorization: Bearer <session-token>` fuer Team- und Admin-/Beobachter-Endpunkte.
 
-
-## Oeffentliche Endpunkte (unveraendert aus v2)
-
-
-`GET /config.php?rallye_id=`, `POST /auth/check-code.php`, `POST /auth/register.php`,
-`POST /auth/login.php`, `POST /auth/admin-login.php` -- siehe v2 fuer Details.
-
-
 ## Team-Endpunkte
-
 
 | Methode | Endpunkt | Beschreibung |
 |---|---|---|
-| GET | /team/me.php | Eigene Team-Daten (inkl. avatar_url) |
-| GET | /stations.php?rallye_id= | Stationen inkl. Freischaltstatus UND discovery_mode |
+| GET | /team/me.php | Eigene Team-Daten inklusive `avatar_url` |
+| GET | /stations.php?rallye_id= | Stationen inklusive Freischaltstatus und `discovery_mode` |
 | POST | /stations/unlock.php | QR-Freischaltung |
-| POST | /team/check-geofence.php | GPS-Position senden, GPS-Stationen pruefen (mit Debug-Logs) |
+| POST | /team/check-geofence.php | GPS-Position senden und GPS-Stationen pruefen |
 | GET | /puzzles.php?station_id= | Raetsel einer Station |
-| POST | /puzzles/hint.php | Hinweis anfordern (KEINE Punktbuchung, siehe unten) |
-| POST | /puzzles/submit.php | Antwort einreichen (inkl. hint_used-Punktabzug) |
+| POST | /puzzles/hint.php | Hinweis anfordern, ohne sofortigen Punktabzug |
+| POST | /puzzles/submit.php | Antwort einreichen inklusive `hint_used`-Punktabzug |
 | GET | /team/progress.php | Eigener Fortschritt |
-| GET | /leaderboard.php?rallye_id= | Rangliste -- liefert `{leaderboard: [...]}` mit Feldern
-  `team_id, team_name, stations_completed, total_points, total_hints_used` |
+| GET | /leaderboard.php?rallye_id= | Rangliste |
 | GET | /team/broadcasts.php?since= | Neue Broadcasts |
 
+**GPS-Debug (11.09.2026):** `/team/check-geofence.php` schreibt empfangene Teampositionen und die Entfernungen zu GPS-Stationen in das PHP-Error-Log.
 
-**Hinweis-Mechanik (korrigiert 09.09.2026 abends):** `/puzzles/hint.php` hat KEINE
-Seiteneffekte mehr. Der Punktabzug erfolgt ausschliesslich in `/puzzles/submit.php`
-ueber das vom Frontend mitgesendete Feld `hint_used: true`.
+## Ermittler-Chat
 
+| Methode | Endpunkt | Beschreibung |
+|---|---|---|
+| GET | /team/chat.php | Vollstaendiger chronologischer Chat-Verlauf; Optionen werden nur fuer `response_type='buttons'` geliefert |
+| POST | /team/chat/respond.php | Chat-Antwort einreichen; speichert bei Buttons das gewaehlte Label als `team_response`; kann eine Station freischalten |
+| GET | /team/open-tasks.php | Unbeantwortete Chat-Aufgaben |
+| GET | /team/suspects.php | Entdeckte Verdaechtige ohne Schuldstatus |
+| POST | /team/photos/submit.php | Foto-Upload fuer `photo_ref`-Knoten |
+| POST | /team/avatars/upload.php | Avatar-Upload |
 
-**GPS-Debug-Logs (11.09.2026):** `/team/check-geofence.php` loggt jede empfangene
-Position und jede berechnete Distanz zu GPS-Stationen im Error-Log. Format:
-`[GEOFENCE] Team X: Station Y (Titel): Distanz=12.3 m, Radius=50 m`.
+**Anklage-Gate (11.09.2026):** Eine durch eine Anklage-Antwort erreichbare Station wird nur freigeschaltet, wenn das Team vier Verdaechtige ueber Chat-Freischaltungen besucht hat. Die Pruefung erfolgt in `/team/chat/respond.php`.
 
+**Verifizierter Chat-500er-Fix (11.09.2026):** Dateien in `backend/api/team/` muessen Bootstrap mit `require_once __DIR__ . '/../bootstrap.php';` einbinden. Der zuvor verwendete Pfad `../../bootstrap.php` zeigte auf `backend/bootstrap.php` statt auf `backend/api/bootstrap.php` und verursachte einen leeren HTTP-500-Fehler. Die funktionierende Referenz ist `backend/api/team/me.php`.
+
+**Temporarer Diagnose-Endpunkt:** `/team/chat-diagnostic.php` ist ausschliesslich fuer die kurzfristige Produktionsdiagnose vorhanden und erfordert Team-Authentifizierung. Nach erfolgreicher Stabilitaetspruefung muss er entfernt werden.
 
 ## Admin-Endpunkte
 
-
-Grundlegende Endpunkte (`/admin/dashboard.php`, `/admin/rallyes.php`, `/admin/teams.php`,
-`/admin/stations.php`, `/admin/puzzles.php`, `/admin/broadcast.php`, `/admin/leaderboard.php`,
-`/admin/positions.php`, Spielsteuerung unter `/admin/game/*`, `/admin/start-codes.php`).
-
-
-`GET /admin/leaderboard.php?rallye_id=` liefert `{leaderboard: [...]}` mit denselben
-Feldern wie der Team-Endpunkt (siehe oben), mit expliziter `ORDER BY total_points DESC,
-started_at ASC`.
-
-
-`POST /admin/broadcast.php` erwartet `target_team_ids` als JSON-**Array** numerischer
-IDs (nicht als kommagetrennten String) -- `is_array($body['target_team_ids'])` wird
-serverseitig geprueft.
-
-
-## Ermittler-Chat-Endpunkte (siehe 05_Technische_Spezifikation_Ermittler_Chat_v1.md)
-
-
-### Team-Endpunkte
-
-
-| Methode | Endpunkt | Beschreibung | Phase |
-|---|---|---|---|
-| GET | /team/chat.php | Vollstaendiger Chat-Verlauf inkl. offener Antwortoptionen (nur bei response_type='buttons') |
-| POST | /team/chat/respond.php | Antwort einreichen; speichert bei Buttons das Label (nicht die ID) als team_response; kann zusaetzlich unlocked_station_id zurueckgeben; Anklage-Station nur bei ≥4 besuchten Verdaechtigen |
-| GET | /team/open-tasks.php | Alle unbeantworteten Chat-Aufgaben des Teams |
-| GET | /team/suspects.php | Bisher entdeckte Verdaechtige des Teams (ohne is_guilty) |
-| POST | /team/photos/submit.php | Foto-Upload fuer photo_ref-Knoten (multipart/form-data, max. 8 MB) |
-| POST | /team/avatars/upload.php | Avatar-Upload (multipart/form-data, max. 2 MB) |
-
-
-### Admin-Endpunkte
-
-
-| Methode | Endpunkt | Beschreibung | Phase |
-|---|---|---|---|
-| GET/POST/PUT/DELETE | /admin/story-nodes.php | CRUD fuer Chat-Knoten (inkl. media_type/media_url) |
-| GET/POST/PUT/DELETE | /admin/story-node-options.php | CRUD fuer Antwortoptionen (inkl. unlocks_station_id) |
-| GET/POST/PUT/DELETE | /admin/suspects.php | CRUD fuer Verdaechtige |
-| GET | /admin/photo-submissions.php?rallye_id= | Liste aller Foto-Einsendungen |
-| POST | /admin/photo-submissions/award.php | Punkte fuer Foto-Einsendung vergeben (nur einmal) |
-| GET/POST/PUT/DELETE | /admin/broadcast-templates.php | CRUD fuer Eilmeldungs-Vorlagen |
-
-
-Implementiert in `backend/api/team/chat.php`, `backend/api/team/chat/respond.php`,
-`backend/api/team/open-tasks.php`, `backend/api/team/suspects.php`,
-`backend/api/team/photos/submit.php`, `backend/api/team/avatars/upload.php`,
-`backend/api/admin/story-nodes.php`, `backend/api/admin/story-node-options.php`,
-`backend/api/admin/suspects.php`, `backend/api/admin/photo-submissions.php`,
-`backend/api/admin/photo-submissions/award.php`, `backend/api/admin/broadcast-templates.php`.
-
-
-## Beobachter-Endpunkte / System-Endpunkt / Fehlercodes
-
-
-Unveraendert aus v2 -- siehe dort fuer vollstaendige Tabellen.
-
+Grundlegende Endpunkte: `/admin/dashboard.php`, `/admin/rallyes.php`, `/admin/teams.php`, `/admin/stations.php`, `/admin/puzzles.php`, `/admin/broadcast.php`, `/admin/leaderboard.php`, `/admin/positions.php`, `/admin/game/*`, `/admin/start-codes.php`, Story-Node-, Suspect-, Foto- und Broadcast-Template-Verwaltung.
 
 ---
 
-
-**Erstellt:** 31.08.2026 (v1), 31.08.2026 (v2), 09.09.2026 (v3), 10.09.2026 (Bugfix-Session)
-**Aktualisiert:** 11.09.2026 (Anklage-Sperre, 00-Bug-Fix, GPS-Debug)
-**Version:** 3.2
+**Aktualisiert:** 11.09.2026, 04:18 Uhr
+**Version:** 3.3
