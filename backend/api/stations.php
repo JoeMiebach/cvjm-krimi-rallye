@@ -5,6 +5,7 @@
 // entdeckte Stationen (via Chat) mit "🔒 verschlossen"-Status.
 // FIX (11.09.2026, 13:58): Ruckwartskompatibel - funktioniert auch OHNE
 // discovered_at-Spalte (Migration 006 kann spater ausgefuhrt werden).
+// FIX (11.09.2026, 14:11): sort_order zu order_index korrigiert (passt zur DB).
 
 require_once __DIR__ . '/bootstrap.php';
 requireMethod('GET');
@@ -41,7 +42,7 @@ if ($hasDiscoveredColumn) {
         WHERE s.rallye_id = ? AND s.is_active = 1
         ORDER BY 
             CASE WHEN su.unlocked_at IS NOT NULL THEN 0 ELSE 1 END,
-            s.sort_order
+            s.order_index
     ");
     $stmt->execute([$team['id'], $rallyeId]);
 } else {
@@ -60,7 +61,7 @@ if ($hasDiscoveredColumn) {
         WHERE s.rallye_id = ? AND s.is_active = 1
         ORDER BY 
             CASE WHEN su.unlocked_at IS NOT NULL THEN 0 ELSE 1 END,
-            s.sort_order
+            s.order_index
     ");
     $stmt->execute([$team['id'], $rallyeId]);
 }
