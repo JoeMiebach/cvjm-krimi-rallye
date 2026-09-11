@@ -4,12 +4,14 @@
 // wichtig, da mehrere parallele Leads gleichzeitig offen sein koennen und im
 // Chat-Verlauf sonst leicht untergehen. Tippen navigiert zurueck zum Chat,
 // wo die eigentliche Beantwortung passiert.
-// GEFIXT (11.09.2026, 12:52): Sektion "Erledigte Aufgaben" ergänzt
+// GEFIXT (11.09.2026, 12:52): Sektion "Erledigte Aufgaben" ergaenzt
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 
+
 const POLL_INTERVAL_MS = 10_000;
+
 
 const TYPE_LABELS = {
   info: 'Hinweis',
@@ -18,11 +20,13 @@ const TYPE_LABELS = {
   accusation: 'Anklage'
 };
 
+
 export default function OpenTasksScreen() {
   const [tasks, setTasks] = useState([]);
   const [completedTasks, setCompletedTasks] = useState([]);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+
 
   async function loadTasks() {
     try {
@@ -38,16 +42,19 @@ export default function OpenTasksScreen() {
     }
   }
 
+
   useEffect(() => {
     loadTasks();
     const intervalId = setInterval(loadTasks, POLL_INTERVAL_MS);
     return () => clearInterval(intervalId);
   }, []);
 
+
   return (
     <div className="space-y-3 p-4 pb-24">
       <h1 className="text-xl font-bold text-primary-700">Offene Aufgaben</h1>
       {error && <p className="text-sm text-red-600">{error}</p>}
+
 
       {tasks.length === 0 && (
         <p className="text-sm text-ink/60">
@@ -55,11 +62,12 @@ export default function OpenTasksScreen() {
         </p>
       )}
 
+
       <div className="space-y-2">
         {tasks.map((task) => (
           <button
             key={task.node_id}
-            onClick={() => navigate('/chat')}
+            onClick={() => navigate(`/chat?highlight=node_${task.node_id}`)}
             className="card block w-full text-left"
           >
             <p className="mb-1 text-xs font-semibold uppercase text-accent-600">
@@ -69,6 +77,7 @@ export default function OpenTasksScreen() {
           </button>
         ))}
       </div>
+
 
       {completedTasks.length > 0 && (
         <div className="mt-6">
@@ -80,7 +89,7 @@ export default function OpenTasksScreen() {
                   {TYPE_LABELS[task.type] || task.type}
                 </p>
                 <p className="text-sm">{task.message_text}</p>
-                <p className="mt-1 text-xs text-primary-700">✓ Gelö¬½¬st</p>
+                <p className="mt-1 text-xs text-primary-700">✓ Geloeost</p>
               </div>
             ))}
           </div>

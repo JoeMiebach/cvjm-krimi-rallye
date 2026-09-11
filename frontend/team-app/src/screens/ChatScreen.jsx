@@ -18,13 +18,16 @@
 // zwischengespeichert und beim naechsten 'online'-Event automatisch erneut
 // gesendet.
 // GEFIXT (11.09.2026, 12:56): PuzzleRefButton-Komponente fuer puzzle_ref-Status
+// GEFIXT (12.09.2026): Highlight-Animation wenn von Offene-Aufgaben genavigt wird
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { queueAction, flushQueue } from '../offline/queue';
 import PuzzleRefButton from '../components/PuzzleRefButton';
 
+
 const POLL_INTERVAL_MS = 10_000;
+
 
 function formatTime(isoString) {
   if (!isoString) return '';
@@ -32,10 +35,12 @@ function formatTime(isoString) {
   return date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
 
+
 function PhotoUploadForm({ nodeId, onSubmitPhoto }) {
   const [file, setFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -50,6 +55,7 @@ function PhotoUploadForm({ nodeId, onSubmitPhoto }) {
       setSubmitting(false);
     }
   }
+
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2 pt-1">
@@ -68,15 +74,30 @@ function PhotoUploadForm({ nodeId, onSubmitPhoto }) {
   );
 }
 
-function ChatBubble({ entry, onRespond, onSubmitPhoto, navigate }) {
+
+function ChatBubble({ entry, onRespond, onSubmitPhoto, navigate, highlight }) {
   const isOpenAnswer = !entry.is_completed && entry.response_type !== 'none';
   const [textValue, setTextValue] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState(null);
+  const bubbleRef = useRef(null);
+
 
   useEffect(() => {
     if (entry.is_completed) setFeedback(null);
   }, [entry.is_completed]);
+
+
+  useEffect(() => {
+    if (highlight && bubbleRef.current) {
+      bubbleRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      bubbleRef.current.classList.add('ring-2', 'ring-accent-500', 'ring-offset-2');
+      setTimeout(() => {
+        bubbleRef.current?.classList.remove('ring-2', 'ring-accent-500', 'ring-offset-2');
+      }, 2000);
+    }
+  }, [highlight]);
+
 
   async function handleButtonClick(optionId) {
     setSubmitting(true);
@@ -90,6 +111,7 @@ function ChatBubble({ entry, onRespond, onSubmitPhoto, navigate }) {
       setSubmitting(false);
     }
   }
+
 
   async function handleTextSubmit(e) {
     e.preventDefault();
@@ -108,30 +130,37 @@ function ChatBubble({ entry, onRespond, onSubmitPhoto, navigate }) {
     }
   }
 
+
   const isPhotoResponse = entry.is_completed && typeof entry.team_response === 'string' &&
     entry.team_response.startsWith('/uploads/photos/');
 
+
   return (
-    <div className="card max-w-[85%] space-y-2 self-start bg-primary-50">
+    <div ref={bubbleRef} className="card max-w-[85%] space-y-2 self-start bg-primary-50 transition-all duration-300">
       <p className="whitespace-pre-line text-sm">{entry.message_text}</p>
+
 
       {entry.image_url && (
         <img src={entry.image_url} alt="" className="max-h-48 w-full rounded-lg object-cover" />
       )}
 
+
       {entry.media_type === 'audio_ref' && entry.media_url && (
         <audio controls className="w-full" src={entry.media_url} />
       )}
 
+
       {entry.media_type === 'video_ref' && entry.media_url && (
         <video controls className="max-h-64 w-full rounded-lg" src={entry.media_url} />
       )}
+
 
       {entry.map_latitude && entry.map_longitude && (
         <button className="btn-secondary text-xs" onClick={() => navigate('/karte')}>
           📍 Auf Karte anzeigen
         </button>
       )}
+
 
       {isOpenAnswer && entry.response_type === 'buttons' && (
         <div className="flex flex-wrap gap-2 pt-1">
@@ -147,6 +176,7 @@ function ChatBubble({ entry, onRespond, onSubmitPhoto, navigate }) {
           ))}
         </div>
       )}
+
 
       {isOpenAnswer && (entry.response_type === 'text' || entry.response_type === 'number') && (
         <form onSubmit={handleTextSubmit} className="flex gap-2 pt-1">
@@ -164,6 +194,7 @@ function ChatBubble({ entry, onRespond, onSubmitPhoto, navigate }) {
         </form>
       )}
 
+
       {isOpenAnswer && entry.response_type === 'puzzle_ref' && entry.station_id && (
         <PuzzleRefButton
           stationId={entry.station_id}
@@ -172,11 +203,14 @@ function ChatBubble({ entry, onRespond, onSubmitPhoto, navigate }) {
         />
       )}
 
+
       {isOpenAnswer && entry.response_type === 'photo_ref' && (
         <PhotoUploadForm nodeId={entry.node_id} onSubmitPhoto={onSubmitPhoto} />
       )}
 
+
       {feedback && <p className="text-sm italic text-accent-700">{feedback}</p>}
+
 
       {isPhotoResponse && (
         <img src={entry.team_response} alt="Eure Einsendung" className="max-h-48 w-full rounded-lg object-cover" />
@@ -185,17 +219,22 @@ function ChatBubble({ entry, onRespond, onSubmitPhoto, navigate }) {
         <p className="text-xs text-ink/50">Eure Antwort: {entry.team_response}</p>
       )}
 
+
       <p className="text-right text-xs text-ink/40">{formatTime(entry.delivered_at)}</p>
     </div>
   );
 }
 
+
 export default function ChatScreen() {
   const [chat, setChat] = useState([]);
   const [error, setError] = useState(null);
   const [avatarUrl, setAvatarUrl] = useState(null);
+  const [highlightNodeId, setHighlightNodeId] = useState(null);
   const bottomRef = useRef(null);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
 
   async function loadChat() {
     try {
@@ -207,6 +246,7 @@ export default function ChatScreen() {
     }
   }
 
+
   async function loadAvatar() {
     try {
       const result = await api.getMe();
@@ -216,12 +256,26 @@ export default function ChatScreen() {
     }
   }
 
+
   useEffect(() => {
     loadChat();
     loadAvatar();
     const intervalId = setInterval(loadChat, POLL_INTERVAL_MS);
     return () => clearInterval(intervalId);
   }, []);
+
+
+  // Highlight-Node aus URL-Param auslesen
+  useEffect(() => {
+    const highlightParam = searchParams.get('highlight');
+    if (highlightParam) {
+      const nodeId = parseInt(highlightParam.replace('node_', ''), 10);
+      setHighlightNodeId(nodeId);
+      // URL-Param entfernen damit beim normalen Navigieren kein Highlight bleibt
+      navigate('/chat', { replace: true });
+    }
+  }, [searchParams, navigate]);
+
 
   useEffect(() => {
     function handleOnline() {
@@ -234,9 +288,11 @@ export default function ChatScreen() {
     return () => window.removeEventListener('online', handleOnline);
   }, []);
 
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chat.length]);
+
 
   async function handleRespond(nodeId, response) {
     try {
@@ -253,6 +309,7 @@ export default function ChatScreen() {
     }
   }
 
+
   async function handleSubmitPhoto(nodeId, file) {
     try {
       await api.submitPhoto(nodeId, file);
@@ -266,6 +323,7 @@ export default function ChatScreen() {
       await loadChat();
     }
   }
+
 
   return (
     <div className="flex min-h-screen flex-col gap-3 p-4 pb-24">
@@ -289,6 +347,7 @@ export default function ChatScreen() {
             onRespond={handleRespond}
             onSubmitPhoto={handleSubmitPhoto}
             navigate={navigate}
+            highlight={highlightNodeId === entry.node_id}
           />
         ))}
         <div ref={bottomRef} />
