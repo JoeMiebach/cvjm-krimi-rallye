@@ -1,8 +1,10 @@
 // team-app/src/screens/PuzzlesScreen.jsx
-// GEFIXT (13.09.2026): Link nach Story-Clue-Reveal zeigt jetzt auf /chat
-// statt /ermittlungsakte -- die alte Ermittlungsakte-Route existiert seit
-// der Umstellung auf den Ermittler-Chat (App.jsx) nicht mehr, der Link
-// fuehrte bisher ins Leere (Redirect auf "/" durch die Catch-all-Route).
+// GEFIXT (13.09.2026): Link nach Story-Clue-Reveal zeigte auf /chat statt
+// /ermittlungsakte (die alte Ermittlungsakte-Route existierte nicht mehr).
+// GEAENDERT (13.09.2026, Option A): Der gesamte Story-Clue-Reveal-Block
+// wurde entfernt -- das Legacy-Ermittlungsakte-System (team_story_clues)
+// wurde vollstaendig zugunsten des Ermittler-Chat-Systems entfernt. Das
+// Backend (puzzles/submit.php) liefert kein story_clue-Feld mehr im Response.
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../api/client';
@@ -24,7 +26,6 @@ export default function PuzzlesScreen() {
   const [puzzles, setPuzzles] = useState([]);
   const [answers, setAnswers] = useState({});
   const [feedback, setFeedback] = useState({});
-  const [revealedClue, setRevealedClue] = useState(null);
   const [hintRequestedFor, setHintRequestedFor] = useState({});
   const [scannerActive, setScannerActive] = useState(false);
   const [unlockStatus, setUnlockStatus] = useState(null);
@@ -97,7 +98,6 @@ export default function PuzzlesScreen() {
       const hintUsed = !!hintRequestedFor[puzzleId];
       const result = await api.submitAnswer(puzzleId, answer, hintUsed);
       setFeedback((prev) => ({ ...prev, [puzzleId]: result.message }));
-      if (result.is_correct && result.story_clue) setRevealedClue(result.story_clue);
       if (result.is_correct) await loadPuzzles();
       if (hintUsed) setHintRequestedFor((prev) => ({ ...prev, [puzzleId]: false }));
     } catch (err) {
@@ -161,7 +161,6 @@ export default function PuzzlesScreen() {
         {station.status === 'discovered' && (station.unlock_type === 'manual' || station.unlock_type === 'auto') && <p className="text-sm text-ink/70">Diese Station wird vom Spielleiter freigeschaltet. Meldet euch vor Ort, falls sie noch verschlossen ist.</p>}
       </div>}
       {isUnlocked && <>
-        {revealedClue && <div className="card mb-4 border-l-4 border-l-accent-500 bg-accent-500/5"><p className="mb-1 text-sm font-bold text-accent-600">Neues Beweisstueck entdeckt!</p><p className="text-ink">{revealedClue}</p><Link to="/chat" className="mt-2 inline-block text-sm font-semibold text-primary-700 underline">Zum Chat</Link></div>}
         <div className="space-y-4">{puzzles.map((puzzle) => <div key={puzzle.id} className="card space-y-3"><p className="font-semibold">{puzzle.question}</p>{renderMedia(puzzle)}{!puzzle.is_solved && <>{renderAnswerInput(puzzle)}<div className="flex gap-2">{puzzle.type !== 'multiple_choice' && <button className="btn-primary flex-1 disabled:cursor-not-allowed disabled:opacity-50" disabled={!canAct} onClick={() => handleSubmit(puzzle.id)}>Absenden</button>}<button className={(puzzle.type === 'multiple_choice' ? 'btn-secondary w-full' : 'btn-secondary flex-1') + ' disabled:cursor-not-allowed disabled:opacity-50'} disabled={!canAct} onClick={() => handleHint(puzzle.id)}>Hinweis</button></div></>}{puzzle.is_solved && <p className="text-sm font-semibold text-primary-700">Geloest</p>}{feedback[puzzle.id] && <p className="text-sm text-primary-700">{feedback[puzzle.id]}</p>}</div>)}</div>
       </>}
       <BottomNav />

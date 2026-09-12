@@ -6,6 +6,9 @@
 // Bearbeiten von Antworten weiterhin nicht.
 // NEU (09.09.2026): rallye_id (fuer loadStations) kommt aus dem RallyeContext
 // (Admin-Dropdown) statt aus der festen VITE_DEFAULT_RALLYE_ID.
+// GEAENDERT (13.09.2026, Option A): story_clue_text-Feld entfernt -- das
+// Legacy-Ermittlungsakte-System wurde komplett zugunsten des
+// Ermittler-Chat-Systems (story_nodes) entfernt. Siehe docs/03_Datenbank.md.
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useRallye } from '../context/RallyeContext';
@@ -55,7 +58,6 @@ const emptyForm = {
   order_index: 1,
   hint: '',
   hint_penalty: 2,
-  story_clue_text: '',
   media_url: '',
   time_limit_seconds: ''
 };
@@ -169,7 +171,6 @@ export default function PuzzlesEditorScreen() {
       order_index: puzzle.order_index,
       hint: puzzle.hint || '',
       hint_penalty: puzzle.hint_penalty,
-      story_clue_text: puzzle.story_clue_text || '',
       media_url: puzzle.media_url || '',
       time_limit_seconds: puzzle.time_limit_seconds ?? ''
     });
@@ -218,7 +219,6 @@ export default function PuzzlesEditorScreen() {
       order_index: Number(form.order_index),
       hint: form.hint.trim() === '' ? null : form.hint.trim(),
       hint_penalty: Number(form.hint_penalty),
-      story_clue_text: form.story_clue_text.trim() === '' ? null : form.story_clue_text.trim(),
       media_url: form.media_url.trim() === '' ? null : form.media_url.trim(),
       time_limit_seconds: form.time_limit_seconds === '' ? null : Number(form.time_limit_seconds)
     };
@@ -480,21 +480,6 @@ export default function PuzzlesEditorScreen() {
               />
             </label>
 
-            <div className="sm:col-span-2 rounded-lg border-2 border-accent-500/40 bg-accent-500/5 p-3">
-              <label className="block">
-                <span className="mb-1 block text-sm font-semibold text-accent-600">
-                  🕵️ Ermittlungshinweis (Story) – optional
-                </span>
-                <textarea
-                  className="input-field"
-                  rows={3}
-                  placeholder="Wird nur bei RICHTIGER Lösung freigeschaltet und landet in der 'Ermittlungsakte' des Teams."
-                  value={form.story_clue_text}
-                  onChange={(e) => handleChange('story_clue_text', e.target.value)}
-                />
-              </label>
-            </div>
-
             <div className="sm:col-span-2 flex gap-2">
               <button type="submit" className="btn-primary">
                 {editingId ? 'Rätsel speichern' : 'Rätsel anlegen'}
@@ -525,7 +510,6 @@ export default function PuzzlesEditorScreen() {
                     <p className="text-xs text-ink/50">
                       {PUZZLE_TYPES.find((t) => t.value === p.type)?.label || p.type} · {p.points} Punkte ·
                       max. {p.max_attempts} Versuche
-                      {p.story_clue_text && ' · 🕵️ mit Ermittlungshinweis'}
                     </p>
                   </div>
                   <div className="flex gap-2">

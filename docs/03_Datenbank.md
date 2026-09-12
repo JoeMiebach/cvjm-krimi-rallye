@@ -2,7 +2,6 @@
 
 **MySQL/MariaDB — Viking-Schatz Rallye, Multi-Rallye-Schema**
 **Stand:** 13.09.2026, rekonstruiert aus einem produktiven Datenbank-Export (STRATO, `dbs16076643`) — spiegelt den tatsächlichen Live-Zustand, nicht nur die ursprüngliche Planung.
-**Ersetzt:** 03_Datenbank_Schema_MySQL_MultiRallye_v3.sql
 
 Alle Tabellen: `ENGINE=InnoDB`, `CHARSET=utf8mb3` (Tabellen), Verbindung nutzt `utf8mb4`.
 
@@ -23,8 +22,7 @@ Alle Tabellen: `ENGINE=InnoDB`, `CHARSET=utf8mb3` (Tabellen), Verbindung nutzt `
 | `answers` | Antwortoptionen/korrekte Antworten pro Rätsel |
 | `team_attempts` | Alle Rätsel-Versuche eines Teams |
 | `team_progress` | Aggregierter Fortschritt pro Team (1:1 zu `teams`) |
-| `team_story_clues` | **Legacy:** persistente Ermittlungsakte (altes System) |
-| `story_nodes` | Ermittler-Chat-Knoten |
+| `story_nodes` | Ermittler-Chat-Knoten — alleiniges Story-System (seit 13.09.2026) |
 | `story_node_options` | Antwortoptionen/Verzweigungen eines Chat-Knotens |
 | `team_story_log` | Zustellungs-/Antwortprotokoll pro Team×Knoten |
 | `suspects` | Verdächtige pro Rallye |
@@ -138,7 +136,7 @@ CREATE TABLE station_unlocks (
     UNIQUE KEY uq_team_station (team_id, station_id)
 );
 ```
-**Live-Abweichung ggu. ursprünglichem v3-Schema:** `unlocked_at` ist nullable und `discovered_at` (TIMESTAMP) wurde ergänzt — Stationen können jetzt separat „entdeckt" (durch Chat/Karte sichtbar) und „freigeschaltet" (Rätsel zugänglich) sein. **GELÖST (13.09.2026):** `unlock_source` enthält jetzt `'chat'` als gültigen ENUM-Wert (zuvor fehlte dieser Wert im Schema, obwohl `lib/story.php` ihn beim automatischen Freischalten über den Ermittler-Chat verwendet).
+`unlocked_at` ist nullable und `discovered_at` (TIMESTAMP) erlaubt getrennte „entdeckt"/„freigeschaltet"-Zustände. `unlock_source` enthält `'chat'` als gültigen ENUM-Wert (automatische Freischaltung über `lib/story.php`).
 
 ### `puzzles`
 ```sql
@@ -147,7 +145,6 @@ CREATE TABLE puzzles (
     type ENUM('multiple_choice','text','image','audio','video','number',
                'sequence','memory','word_scramble','treasure_hunt') NOT NULL,
     question TEXT NOT NULL, hint TEXT NULL, hint_penalty INT DEFAULT 5,
-    story_clue_text TEXT NULL COMMENT 'Legacy-Ermittlungshinweis',
     media_url VARCHAR(255) NULL,
     points INT DEFAULT 10, time_limit_seconds INT NULL, max_attempts INT DEFAULT 3,
     order_index INT NOT NULL, is_active TINYINT(1) DEFAULT 1,
@@ -155,6 +152,7 @@ CREATE TABLE puzzles (
     FOREIGN KEY (station_id) REFERENCES stations(id) ON DELETE CASCADE
 );
 ```
+**GEÄNDERT (13.09.2026, Option A):** Spalte `story_clue_text` entfernt (Migration `009_remove_legacy_ermittlungsakte.sql`). Ermittlungshinweise laufen ab sofort ausschließlich über das Ermittler-Chat-System (`story_nodes`).
 
 ### `answers`
 ```sql
@@ -189,17 +187,8 @@ CREATE TABLE team_progress (
 );
 ```
 
-### `team_story_clues` (Legacy-Ermittlungsakte)
-```sql
-CREATE TABLE team_story_clues (
-    id INT AUTO_INCREMENT PRIMARY KEY, team_id INT NOT NULL, puzzle_id INT NOT NULL,
-    story_clue_text TEXT NOT NULL, unlocked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
-    FOREIGN KEY (puzzle_id) REFERENCES puzzles(id) ON DELETE CASCADE,
-    UNIQUE KEY uq_team_puzzle_clue (team_id, puzzle_id)
-);
-```
-**Status:** Laut Migrationsplan sollte diese Tabelle nach vollständiger Umstellung auf das Ermittler-Chat-System entfernt werden. Im aktuellen Code (`puzzles/submit.php`) wird sie jedoch weiterhin befüllt — die Migration ist funktional **nicht abgeschlossen**. Offene Entscheidung: Joe legt fest, ob Option A (entfernen) oder Option B (dauerhaft parallel halten) umgesetzt wird.
+### `team_story_clues` (ENTFERNT, 13.09.2026)
+**Status:** Diese Tabelle wurde per Migration `009_remove_legacy_ermittlungsakte.sql` (`DROP TABLE`) entfernt. Das Legacy-Ermittlungsakte-System ist damit vollständig durch das Ermittler-Chat-System (`story_nodes`/`team_story_log`) ersetzt worden (Option A, Entscheidung vom 13.09.2026). `puzzles/submit.php` schreibt seitdem nicht mehr in diese Tabelle, `team/clues.php` (Lese-Endpunkt) wurde ebenfalls gelöscht.
 
 ### `story_nodes` (Ermittler-Chat)
 ```sql
@@ -226,7 +215,7 @@ CREATE TABLE story_nodes (
     FOREIGN KEY (related_node_id) REFERENCES story_nodes(id) ON DELETE SET NULL
 );
 ```
-**Live-Abweichung ggu. ursprünglicher Phase-A-Spezifikation:** `image_ref` (Verweis auf `media_library.id`, INT), `media_type`, `is_root` und `related_node_id` wurden zusätzlich ergänzt. `is_root` markiert Einstiegsknoten, die beim ersten Kontakt eines Teams automatisch zugestellt werden (`deliverRootNodesIfNeeded()`). `related_node_id` verknüpft proaktive Fehlversuchs-Trigger mit dem ursprünglichen Knoten.
+`image_ref` verweist auf `media_library.id`. `is_root` markiert Einstiegsknoten (`deliverRootNodesIfNeeded()`). `related_node_id` verknüpft proaktive Fehlversuchs-Trigger mit dem ursprünglichen Knoten.
 
 ### `story_node_options`
 ```sql
@@ -242,7 +231,7 @@ CREATE TABLE story_node_options (
     FOREIGN KEY (unlocks_suspect_id) REFERENCES suspects(id) ON DELETE SET NULL
 );
 ```
-`unlocks_station_id` wurde gegenüber der ursprünglichen Phase-A-Spezifikation ergänzt — zentral für den Fog-of-War-Mechanismus (`lib/story.php`, `deliverNode()`).
+`unlocks_station_id` ist zentral für den Fog-of-War-Mechanismus (`lib/story.php`, `deliverNode()`).
 
 ### `team_story_log`
 ```sql
@@ -266,7 +255,7 @@ CREATE TABLE suspects (
     FOREIGN KEY (rallye_id) REFERENCES rallyes(id) ON DELETE CASCADE
 );
 ```
-**Bekannter UX-Punkt:** Der Admin-Editor (`SuspectsEditorScreen.jsx`) warnt zwar, wenn bereits ein weiterer Verdächtiger mit `is_guilty = 1` existiert, blockiert das Speichern aber nicht. Mehrere Schuldige pro Rallye sind datenbankseitig möglich und führen zu einer mehrdeutigen finalen Anklage. Empfehlung: entweder serverseitige Eindeutigkeitsprüfung in `admin/suspects.php` ergänzen, oder bewusst als Feature für "mehrere mögliche Schuldige" dokumentieren.
+**Bekannter UX-Punkt:** Der Admin-Editor (`SuspectsEditorScreen.jsx`) warnt zwar, wenn bereits ein weiterer Verdächtiger mit `is_guilty = 1` existiert, blockiert das Speichern aber nicht. Mehrere Schuldige pro Rallye sind datenbankseitig möglich und führen zu einer mehrdeutigen finalen Anklage.
 
 ### `photo_submissions`
 ```sql
@@ -294,7 +283,7 @@ CREATE TABLE media_library (
     FOREIGN KEY (uploaded_by_admin_id) REFERENCES admins(id) ON DELETE SET NULL
 );
 ```
-**GELÖST (13.09.2026):** Diese Tabelle wurde von `admin/media/upload.php` referenziert (`INSERT INTO media_library (rallye_id, file_type, file_path, uploaded_by_admin_id) VALUES (?, ?, ?, ?)`), war aber im ursprünglich gesichteten Datenbank-Export nicht enthalten. Die Definition ist jetzt hier vollständig dokumentiert. **Migrations-Hinweis:** Vor dem nächsten Produktiveinsatz prüfen, ob diese Tabelle in der tatsächlichen STRATO-Datenbank existiert; falls nicht, obiges `CREATE TABLE` als Migration ausführen — sonst schlägt jeder Medien-Upload im Story-Node-Editor mit einem SQL-Fehler fehl.
+**Migrations-Hinweis:** Vor dem nächsten Produktiveinsatz prüfen, ob diese Tabelle in der tatsächlichen STRATO-Datenbank existiert; falls nicht, obiges `CREATE TABLE` als Migration ausführen.
 
 ### `broadcasts`, `broadcast_reads`, `broadcast_templates`
 ```sql
@@ -339,13 +328,19 @@ ORDER BY tp.total_points DESC, tp.started_at ASC;
 
 ---
 
-## 3. Empfehlung: Schema-Bereinigung
+## 3. Migrationen (chronologisch)
 
-Für die nächste Iteration sollte geprüft werden:
-1. Entfernen von `puzzles.story_clue_text` und `team_story_clues`, sobald der Ermittler-Chat als alleiniges Story-System bestätigt ist (siehe Abschnitt `team_story_clues` oben).
-2. `media_library`-Tabelle in der produktiven STRATO-Datenbank anlegen, falls noch nicht vorhanden (siehe Abschnitt `media_library` oben).
-3. Serverseitige Eindeutigkeitsprüfung für `suspects.is_guilty` ergänzen, falls pro Rallye nur genau ein Schuldiger zulässig sein soll (siehe Abschnitt `suspects` oben).
+| Datei | Zweck |
+|---|---|
+| `009_remove_legacy_ermittlungsakte.sql` | Entfernt `team_story_clues` und `puzzles.story_clue_text` (Option A, 13.09.2026) — manuell auf STRATO auszuführen |
 
 ---
 
-**Quelle:** Live-Datenbank-Export STRATO (`dbs16076643`, mehrere Zeitstände 11.–13.09.2026), abgeglichen mit 03_Datenbank_Schema_MySQL_MultiRallye_v3.sql, 05_Technische_Spezifikation_Ermittler_Chat_v1.md und dem produktiven Backend-Code (`admin/media/upload.php`).
+## 4. Empfehlung: Schema-Bereinigung
+
+1. `media_library`-Tabelle in der produktiven STRATO-Datenbank anlegen, falls noch nicht vorhanden.
+2. Serverseitige Eindeutigkeitsprüfung für `suspects.is_guilty` ergänzen, falls pro Rallye nur genau ein Schuldiger zulässig sein soll.
+
+---
+
+**Quelle:** Live-Datenbank-Export STRATO (`dbs16076643`), abgeglichen mit dem produktiven Backend-Code, Stand 13.09.2026.
