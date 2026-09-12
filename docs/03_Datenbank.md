@@ -1,7 +1,7 @@
 # Datenbank-Schema
 
 **MySQL/MariaDB — Viking-Schatz Rallye, Multi-Rallye-Schema**
-**Stand:** 12.09.2026, rekonstruiert aus einem produktiven Datenbank-Export (STRATO, `dbs16076643`) — spiegelt den tatsächlichen Live-Zustand, nicht nur die ursprüngliche Planung.
+**Stand:** 13.09.2026, rekonstruiert aus einem produktiven Datenbank-Export (STRATO, `dbs16076643`) — spiegelt den tatsächlichen Live-Zustand, nicht nur die ursprüngliche Planung.
 **Ersetzt:** 03_Datenbank_Schema_MySQL_MultiRallye_v3.sql
 
 Alle Tabellen: `ENGINE=InnoDB`, `CHARSET=utf8mb3` (Tabellen), Verbindung nutzt `utf8mb4`.
@@ -29,6 +29,7 @@ Alle Tabellen: `ENGINE=InnoDB`, `CHARSET=utf8mb3` (Tabellen), Verbindung nutzt `
 | `team_story_log` | Zustellungs-/Antwortprotokoll pro Team×Knoten |
 | `suspects` | Verdächtige pro Rallye |
 | `photo_submissions` | Foto-Einreichungen zu `photo_ref`-Knoten |
+| `media_library` | Hochgeladene Medien (Bild/Audio/Video) für Story-Knoten |
 | `broadcasts` | Admin-Broadcast-Nachrichten |
 | `broadcast_reads` | Lesebestätigungen pro Team×Broadcast |
 | `broadcast_templates` | Wiederverwendbare Broadcast-Vorlagen |
@@ -127,7 +128,7 @@ CREATE TABLE stations (
 ```sql
 CREATE TABLE station_unlocks (
     id INT AUTO_INCREMENT PRIMARY KEY, team_id INT NOT NULL, station_id INT NOT NULL,
-    unlock_source ENUM('qr','gps','manual','auto') NULL,
+    unlock_source ENUM('qr','gps','manual','auto','chat') NULL,
     unlocked_at DATETIME NULL,
     discovered_at TIMESTAMP NULL,
     unlocked_by_admin_id INT NULL,
@@ -137,7 +138,7 @@ CREATE TABLE station_unlocks (
     UNIQUE KEY uq_team_station (team_id, station_id)
 );
 ```
-**Live-Abweichung ggü. ursprünglichem v3-Schema:** `unlocked_at` ist nullable und `discovered_at` (TIMESTAMP) wurde ergänzt — Stationen können jetzt separat „entdeckt" (durch Chat/Karte sichtbar) und „freigeschaltet" (Rätsel zugänglich) sein. `unlock_source` erlaubt inzwischen `'chat'` als zusätzlichen Wert (siehe `lib/story.php`), was im ENUM ggf. noch nicht überall konsistent nachgezogen ist — vor Produktivbetrieb prüfen.
+**Live-Abweichung ggu. ursprünglichem v3-Schema:** `unlocked_at` ist nullable und `discovered_at` (TIMESTAMP) wurde ergänzt — Stationen können jetzt separat „entdeckt" (durch Chat/Karte sichtbar) und „freigeschaltet" (Rätsel zugänglich) sein. **GELÖST (13.09.2026):** `unlock_source` enthält jetzt `'chat'` als gültigen ENUM-Wert (zuvor fehlte dieser Wert im Schema, obwohl `lib/story.php` ihn beim automatischen Freischalten über den Ermittler-Chat verwendet).
 
 ### `puzzles`
 ```sql
@@ -198,7 +199,7 @@ CREATE TABLE team_story_clues (
     UNIQUE KEY uq_team_puzzle_clue (team_id, puzzle_id)
 );
 ```
-**Status:** Laut Migrationsplan sollte diese Tabelle nach vollständiger Umstellung auf das Ermittler-Chat-System entfernt werden. Im aktuellen Code (`puzzles/submit.php`) wird sie jedoch weiterhin befüllt — die Migration ist funktional **nicht abgeschlossen**.
+**Status:** Laut Migrationsplan sollte diese Tabelle nach vollständiger Umstellung auf das Ermittler-Chat-System entfernt werden. Im aktuellen Code (`puzzles/submit.php`) wird sie jedoch weiterhin befüllt — die Migration ist funktional **nicht abgeschlossen**. Offene Entscheidung: Joe legt fest, ob Option A (entfernen) oder Option B (dauerhaft parallel halten) umgesetzt wird.
 
 ### `story_nodes` (Ermittler-Chat)
 ```sql
@@ -225,7 +226,7 @@ CREATE TABLE story_nodes (
     FOREIGN KEY (related_node_id) REFERENCES story_nodes(id) ON DELETE SET NULL
 );
 ```
-**Live-Abweichung ggü. ursprünglicher Phase-A-Spezifikation:** `image_ref` (Verweis auf hochgeladenes Medium, INT), `media_type`, `is_root` und `related_node_id` wurden zusätzlich ergänzt. `is_root` markiert Einstiegsknoten, die beim ersten Kontakt eines Teams automatisch zugestellt werden (`deliverRootNodesIfNeeded()`). `related_node_id` verknüpft proaktive Fehlversuchs-Trigger mit dem ursprünglichen Knoten.
+**Live-Abweichung ggu. ursprünglicher Phase-A-Spezifikation:** `image_ref` (Verweis auf `media_library.id`, INT), `media_type`, `is_root` und `related_node_id` wurden zusätzlich ergänzt. `is_root` markiert Einstiegsknoten, die beim ersten Kontakt eines Teams automatisch zugestellt werden (`deliverRootNodesIfNeeded()`). `related_node_id` verknüpft proaktive Fehlversuchs-Trigger mit dem ursprünglichen Knoten.
 
 ### `story_node_options`
 ```sql
@@ -265,6 +266,7 @@ CREATE TABLE suspects (
     FOREIGN KEY (rallye_id) REFERENCES rallyes(id) ON DELETE CASCADE
 );
 ```
+**Bekannter UX-Punkt:** Der Admin-Editor (`SuspectsEditorScreen.jsx`) warnt zwar, wenn bereits ein weiterer Verdächtiger mit `is_guilty = 1` existiert, blockiert das Speichern aber nicht. Mehrere Schuldige pro Rallye sind datenbankseitig möglich und führen zu einer mehrdeutigen finalen Anklage. Empfehlung: entweder serverseitige Eindeutigkeitsprüfung in `admin/suspects.php` ergänzen, oder bewusst als Feature für "mehrere mögliche Schuldige" dokumentieren.
 
 ### `photo_submissions`
 ```sql
@@ -278,6 +280,21 @@ CREATE TABLE photo_submissions (
 );
 ```
 `points_awarded_at` dient als Sperre gegen doppelte Punktevergabe (`admin/photo-submissions/award.php` prüft dies vor dem Update).
+
+### `media_library`
+```sql
+CREATE TABLE media_library (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    rallye_id INT NOT NULL,
+    file_type ENUM('image','audio','video') NOT NULL,
+    file_path VARCHAR(255) NOT NULL,
+    uploaded_by_admin_id INT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (rallye_id) REFERENCES rallyes(id) ON DELETE CASCADE,
+    FOREIGN KEY (uploaded_by_admin_id) REFERENCES admins(id) ON DELETE SET NULL
+);
+```
+**GELÖST (13.09.2026):** Diese Tabelle wurde von `admin/media/upload.php` referenziert (`INSERT INTO media_library (rallye_id, file_type, file_path, uploaded_by_admin_id) VALUES (?, ?, ?, ?)`), war aber im ursprünglich gesichteten Datenbank-Export nicht enthalten. Die Definition ist jetzt hier vollständig dokumentiert. **Migrations-Hinweis:** Vor dem nächsten Produktiveinsatz prüfen, ob diese Tabelle in der tatsächlichen STRATO-Datenbank existiert; falls nicht, obiges `CREATE TABLE` als Migration ausführen — sonst schlägt jeder Medien-Upload im Story-Node-Editor mit einem SQL-Fehler fehl.
 
 ### `broadcasts`, `broadcast_reads`, `broadcast_templates`
 ```sql
@@ -322,19 +339,13 @@ ORDER BY tp.total_points DESC, tp.started_at ASC;
 
 ---
 
-## 3. Nicht in dieser Doku bestätigte, aber im Code referenzierte Tabelle
-
-`admin/media/upload.php` schreibt in eine Tabelle **`media_library`** (Spalten mindestens: `rallye_id`, `file_type`, `file_path`, `uploaded_by_admin_id`). Diese Tabelle war im gesichteten Datenbank-Export nicht enthalten — vor Produktivbetrieb prüfen, ob sie tatsächlich angelegt ist, da sonst der Medien-Upload im Story-Node-Editor fehlschlägt.
-
----
-
-## 4. Empfehlung: Schema-Bereinigung
+## 3. Empfehlung: Schema-Bereinigung
 
 Für die nächste Iteration sollte geprüft werden:
-1. Entfernen von `puzzles.story_clue_text` und `team_story_clues`, sobald der Ermittler-Chat als alleiniges Story-System bestätigt ist.
-2. Ergänzen der fehlenden `media_library`-Tabelle im versionierten Schema.
-3. Vereinheitlichung des `unlock_source`-ENUMs auf `stations.unlock_type` und `station_unlocks.unlock_source`, da `'chat'` inzwischen faktisch als Wert vorkommt.
+1. Entfernen von `puzzles.story_clue_text` und `team_story_clues`, sobald der Ermittler-Chat als alleiniges Story-System bestätigt ist (siehe Abschnitt `team_story_clues` oben).
+2. `media_library`-Tabelle in der produktiven STRATO-Datenbank anlegen, falls noch nicht vorhanden (siehe Abschnitt `media_library` oben).
+3. Serverseitige Eindeutigkeitsprüfung für `suspects.is_guilty` ergänzen, falls pro Rallye nur genau ein Schuldiger zulässig sein soll (siehe Abschnitt `suspects` oben).
 
 ---
 
-**Quelle:** Live-Datenbank-Export STRATO (`dbs16076643`, mehrere Zeitstände 11.–12.09.2026), abgeglichen mit 03_Datenbank_Schema_MySQL_MultiRallye_v3.sql und 05_Technische_Spezifikation_Ermittler_Chat_v1.md.
+**Quelle:** Live-Datenbank-Export STRATO (`dbs16076643`, mehrere Zeitstände 11.–13.09.2026), abgeglichen mit 03_Datenbank_Schema_MySQL_MultiRallye_v3.sql, 05_Technische_Spezifikation_Ermittler_Chat_v1.md und dem produktiven Backend-Code (`admin/media/upload.php`).

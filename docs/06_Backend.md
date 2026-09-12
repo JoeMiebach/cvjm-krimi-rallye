@@ -1,7 +1,7 @@
 # Backend-Dokumentation
 
 **PHP 8.3 REST-API — vollständige Ordnerstruktur und Funktionsreferenz**
-**Stand:** 12.09.2026, erstellt aus vollständigem Codeexport (`backend/`, 57 Dateien) + GitHub-Abgleich
+**Stand:** 13.09.2026, erstellt aus vollständigem Codeexport (`backend/`, 57 Dateien) + GitHub-Abgleich
 
 ---
 
@@ -70,7 +70,8 @@ backend/api/
 ├── system/
 │   └── cleanup.php
 └── team/
-    ├── avatars/                (Upload-Zielordner)
+    ├── avatars/
+    │   └── upload.php
     ├── broadcasts.php
     ├── chat.php
     ├── check-geofence.php
@@ -97,7 +98,7 @@ backend/api/
 | `jsonError(int $statusCode, string $message): void` | HTTP-Status, Fehlermeldung | ruft `jsonResponse` mit `{success:false, error:$message}` |
 | `requireMethod(string $method): void` | erwartete HTTP-Methode | 405-Fehler falls Methode nicht passt |
 | `requireMethods(array $methods): void` | Liste erlaubter Methoden | 405-Fehler falls nicht enthalten |
-| `getJsonBody(): array` | — | dekodierter JSON-Body, 400 bei ungultigem JSON |
+| `getJsonBody(): array` | — | dekodierter JSON-Body, 400 bei ungültigem JSON |
 | `requireFields(array $data, array $fields): void` | Datenarray, Pflichtfeldnamen | 400 mit Liste fehlender Felder |
 
 ### `lib/db.php`
@@ -112,13 +113,13 @@ backend/api/
 | Funktion | Parameter | Rückgabe |
 |---|---|---|
 | `createToken(array $payload, int $ttlSeconds = 21600): string` | Payload-Array, Gültigkeitsdauer in Sekunden | signiertes Token `base64payload.signatur` |
-| `verifyToken(string $token): ?array` | Token-String | dekodiertes Payload-Array oder `null` bei Ungultigkeit/Ablauf |
+| `verifyToken(string $token): ?array` | Token-String | dekodiertes Payload-Array oder `null` bei Ungültigkeit/Ablauf |
 | `getBearerToken(): ?string` | — | Token aus `Authorization: Bearer ...`-Header |
 | `requireTeamAuth(): array` | — | Team-Datensatz (assoziatives Array); 401 bei Fehlschlag |
 | `requireAdminAuth(): array` | — | Admin-Datensatz, nur Rolle `admin`; 403 bei Viewer-Rolle |
 | `requireAdminOrViewerAuth(): array` | — | Admin-Datensatz, Rolle `admin` oder `viewer` |
-| `requireRallyeAccess(int $rallyeId, array $entity): void` | Ziel-Rallye-ID, Entitat mit `rallye_id`-Feld | 403 bei Cross-Rallye-Zugriff |
-| `checkRateLimit(string $key, int $maxAttempts = 10, int $windowSeconds = 60): void` | eindeutiger Schlussel (z. B. IP+Endpunkt) | 429 bei Uberschreitung, sonst kein Ruckgabewert |
+| `requireRallyeAccess(int $rallyeId, array $entity): void` | Ziel-Rallye-ID, Entität mit `rallye_id`-Feld | 403 bei Cross-Rallye-Zugriff |
+| `checkRateLimit(string $key, int $maxAttempts = 10, int $windowSeconds = 60): void` | eindeutiger Schlüssel (z. B. IP+Endpunkt) | 429 bei Überschreitung, sonst kein Rückgabewert |
 
 ### `lib/geofence.php`
 | Funktion | Parameter | Rückgabe |
@@ -128,7 +129,7 @@ backend/api/
 ### `lib/game.php`
 | Funktion | Parameter | Rückgabe |
 |---|---|---|
-| `requireGameRunning(PDO $pdo, int $rallyeId): void` | Rallye-ID | kein Ruckgabewert; 403 mit passender Meldung, falls Spiel pausiert/nicht gestartet/beendet; 404 falls Rallye fehlt |
+| `requireGameRunning(PDO $pdo, int $rallyeId): void` | Rallye-ID | kein Rückgabewert; 403 mit passender Meldung, falls Spiel pausiert/nicht gestartet/beendet; 404 falls Rallye fehlt |
 
 ### `lib/cleanup.php`
 | Funktion | Parameter | Rückgabe |
@@ -138,10 +139,10 @@ backend/api/
 ### `lib/story.php`
 | Funktion | Parameter | Rückgabe |
 |---|---|---|
-| `deliverNode(PDO $pdo, int $teamId, int $nodeId): void` | Team-ID, Knoten-ID | kein Ruckgabewert; stellt Knoten zu, kaskadiert bei Info-Knoten automatisch |
+| `deliverNode(PDO $pdo, int $teamId, int $nodeId): void` | Team-ID, Knoten-ID | kein Rückgabewert; stellt Knoten zu, kaskadiert bei Info-Knoten automatisch |
 | `awardStoryPoints(PDO $pdo, int $teamId, int $points): void` | Team-ID, Punktzahl | addiert Punkte zu `team_progress.total_points` |
 | `deliverRootNodesIfNeeded(PDO $pdo, int $teamId, int $rallyeId): void` | Team-ID, Rallye-ID | stellt alle `is_root=1`-Knoten zu, falls Team noch keinen Log-Eintrag hat |
-| `evaluateProactiveNodes(PDO $pdo, int $teamId, int $rallyeId): void` | Team-ID, Rallye-ID | pruft und stellt fallige proaktive Knoten zu (Inaktivitat/Fehlversuche) |
+| `evaluateProactiveNodes(PDO $pdo, int $teamId, int $rallyeId): void` | Team-ID, Rallye-ID | prüft und stellt fällige proaktive Knoten zu (Inaktivität/Fehlversuche) |
 
 ---
 
@@ -174,7 +175,7 @@ Response: `{ "valid": true, "already_registered": false }` oder `{ "valid": fals
 ### `POST /auth/register.php`
 Body: `{ "code": "...", "team_name": "..." }`
 Response 201: `{ "success": true, "team": { "id": 33, "name": "...", "rallye_id": 14 }, "token": "..." }`
-Setzt zusatzlich Cookie `team_code`.
+Setzt zusätzlich Cookie `team_code`.
 
 ### `POST /auth/login.php`
 Body: `{ "code": "..." }`
@@ -183,7 +184,7 @@ Response 200: analog zu `register.php`, ohne Teamname-Vergabe.
 ### `POST /auth/admin-login.php`
 Body: `{ "email": "...", "password": "..." }`
 Response 200: `{ "success": true, "admin": { "id": 1, "name": "...", "role": "admin" }, "token": "..." }`
-Rate-limitiert uber `checkRateLimit()`.
+Rate-limitiert über `checkRateLimit()`.
 
 ---
 
@@ -194,18 +195,18 @@ Rate-limitiert uber `checkRateLimit()`.
 | GET | `/team/me.php` | Team | Eigene Team-Daten inkl. `avatar_url` |
 | GET | `/stations.php?rallye_id=` | Team | Stationen inkl. Status (`locked`/`discovered`/`unlocked`) |
 | POST | `/stations/unlock.php` | Team | QR-Freischaltung |
-| POST | `/team/check-geofence.php` | Team | GPS-Position melden, Geofence-Stationen prufen |
-| GET | `/puzzles.php?station_id=` | Team | Ratsel einer Station inkl. Losungsstatus |
+| POST | `/team/check-geofence.php` | Team | GPS-Position melden, Geofence-Stationen prüfen |
+| GET | `/puzzles.php?station_id=` | Team | Rätsel einer Station inkl. Lösungsstatus |
 | POST | `/puzzles/hint.php` | Team | Hinweis anfordern |
 | POST | `/puzzles/submit.php` | Team | Antwort einreichen |
 | GET | `/team/progress.php` | Team | Eigener Fortschritt |
 | GET | `/leaderboard.php?rallye_id=` | Team | Rangliste |
 | GET | `/team/broadcasts.php?since=` | Team | Neue Broadcasts seit Zeitstempel |
-| GET | `/team/chat.php` | Team | Vollstandiger Chat-Verlauf, inkl. proaktive Zustellung |
+| GET | `/team/chat.php` | Team | Vollständiger Chat-Verlauf, inkl. proaktive Zustellung |
 | POST | `/team/chat/respond.php` | Team | Antwort auf Chat-Knoten |
 | GET | `/team/open-tasks.php` | Team | Unbeantwortete Chat-Knoten |
 | GET | `/team/completed-tasks.php` | Team | Abgeschlossene Chat-Knoten |
-| GET | `/team/suspects.php` | Team | Bisher entdeckte Verdachtige |
+| GET | `/team/suspects.php` | Team | Bisher entdeckte Verdächtige |
 | POST | `/team/photos/submit.php` | Team | Foto-Einreichung (multipart) |
 | POST | `/team/avatars/upload.php` | Team | Avatar-Upload (multipart) |
 | GET | `/team/clues.php` | Team | Legacy-Ermittlungsakte (aus `team_story_clues`) |
@@ -239,7 +240,7 @@ Response 200: `{ "success": true, "newly_unlocked_stations": [ { "id": 249, "tit
 ### `POST /puzzles/hint.php`
 Body: `{ "puzzle_id": 1057 }`
 Response 200: `{ "success": true, "hint": "...", "hint_penalty": 5 }`
-409 falls Ratsel bereits gelost.
+409 falls Rätsel bereits gelöst.
 
 ### `POST /puzzles/submit.php`
 Body: `{ "puzzle_id": 1057, "answer": "3", "hint_used": false }`
@@ -252,12 +253,12 @@ Body: `{ "puzzle_id": 1057, "answer": "3", "hint_used": false }`
   "next_node_id": 293
 }
 ```
-**Response 200 (falsch, Versuche ubrig):** `{ "success": true, "is_correct": false, "attempts_remaining": 2, "message": "Falsch. Noch 2 Versuche." }`
-**Response 200 (falsch, keine Versuche mehr):** `{ "success": true, "is_correct": false, "attempts_remaining": 0, "message": "Falsch. Keine Versuche mehr ubrig." }`
-Lost bei korrekter Antwort automatisch den verknupften Chat-Knoten aus (`deliverNode()`) und schreibt — sofern gesetzt — weiterhin `story_clue_text` in `team_story_clues` (Legacy-Pfad, siehe Datenbank-Dokument).
+**Response 200 (falsch, Versuche übrig):** `{ "success": true, "is_correct": false, "attempts_remaining": 2, "message": "Falsch. Noch 2 Versuche." }`
+**Response 200 (falsch, keine Versuche mehr):** `{ "success": true, "is_correct": false, "attempts_remaining": 0, "message": "Falsch. Keine Versuche mehr übrig." }`
+Löst bei korrekter Antwort automatisch den verknüpften Chat-Knoten aus (`deliverNode()`) und schreibt — sofern gesetzt — weiterhin `story_clue_text` in `team_story_clues` (Legacy-Pfad, siehe `docs/03_Datenbank.md`, Abschnitt `team_story_clues`).
 
 ### `GET /team/chat.php`
-Pruft vor der Antwort proaktive Knoten (`evaluateProactiveNodes()`) und Root-Knoten (`deliverRootNodesIfNeeded()`).
+Prüft vor der Antwort proaktive Knoten (`evaluateProactiveNodes()`) und Root-Knoten (`deliverRootNodesIfNeeded()`).
 **Response 200:**
 ```json
 { "success": true, "chat": [ {
@@ -274,7 +275,7 @@ Pruft vor der Antwort proaktive Knoten (`evaluateProactiveNodes()`) und Root-Kno
 Body: `{ "node_id": 288, "response": "275" }` (Button-Option-ID) oder `{ "node_id": 289, "response": "1523" }` (Text/Zahl)
 **Response 200 (korrekt):** `{ "success": true, "is_correct": true, "message": "...", "unlocked_nodes": [289], "points_earned": 0 }`
 **Response 200 (falsch):** `{ "success": true, "is_correct": false, "message": "...", "reaction_text": "..." }` — chat-nativ, kein Punktabzug, keine Versuchsgrenze.
-Bei `type='twist'` mit `blocks_alternate_node_id`: deaktiviert den alternativen Pfad fur dieses Team. Bei `type='accusation'`: pruft gegen `suspects.is_guilty`, Bonus nur bei `attempts === 1`.
+Bei `type='twist'` mit `blocks_alternate_node_id`: deaktiviert den alternativen Pfad für dieses Team. Bei `type='accusation'`: prüft gegen `suspects.is_guilty`, Bonus nur bei `attempts === 1`.
 
 ### `GET /team/open-tasks.php`
 **Response 200:** `{ "success": true, "open_tasks": [ { "node_id", "delivered_at", "type", "message_text", "image_url", "map_latitude", "map_longitude", "response_type", "station_id", "puzzle_id" } ] }`
@@ -284,10 +285,10 @@ Filtert Buttons-Knoten mit ≤1 Option per `HAVING`-Klausel heraus (siehe Fix vo
 Analoge Struktur zu `open-tasks.php`, jedoch `is_completed = 1`.
 
 ### `GET /team/suspects.php`
-**Response 200:** `{ "success": true, "suspects": [ { "id", "name", "portrait_icon" } ] }` — nur bereits uber `reveals_suspect_id` entdeckte Verdachtige.
+**Response 200:** `{ "success": true, "suspects": [ { "id", "name", "portrait_icon" } ] }` — nur bereits über `reveals_suspect_id` entdeckte Verdächtige.
 
 ### `POST /team/photos/submit.php`
-**Vollstandig verifiziert (GitHub, SHA: c295469d):**
+**Vollständig verifiziert (GitHub, SHA: c295469d):**
 `multipart/form-data`: `node_id`, `photo` (Datei)
 
 **Validierung:**
@@ -307,10 +308,10 @@ UPDATE team_story_log SET is_completed = 1, responded_at = NOW(), team_response 
 
 **Response 201:** `{ "success": true, "photo_path": "/uploads/photos/..." }`
 
-**Punkte:** Keine automatische Punktevergabe — Admin vergibt Bonus uber `/admin/photo-submissions/award.php`.
+**Punkte:** Keine automatische Punktevergabe — Admin vergibt Bonus über `/admin/photo-submissions/award.php`.
 
 ### `POST /team/avatars/upload.php`
-**Vollstandig verifiziert (GitHub, SHA: 2c8181b9):**
+**Vollständig verifiziert (GitHub, SHA: 2c8181b9):**
 `multipart/form-data`: `avatar` (Datei)
 
 **Validierung:**
@@ -339,24 +340,24 @@ UPDATE teams SET avatar_url = ? WHERE id = ?
 | GET/POST | `/admin/broadcast.php`, `/admin/broadcasts.php` | Admin (POST) / Admin+Viewer (GET) | Broadcast senden/Verlauf lesen |
 | GET/POST/PUT/DELETE | `/admin/broadcast-templates.php` | Admin (Schreiben) / Admin+Viewer (Lesen) | CRUD Broadcast-Vorlagen |
 | GET/POST/PUT | `/admin/rallyes.php` | Admin (Schreiben) / Admin+Viewer (Lesen) | CRUD Rallyes |
-| POST | `/admin/rallyes/archive.php` | Admin | Rallye archivieren |
+| POST | `/admin/rallyes/archive.php` | Admin | Rallye archivieren — erwartet `{ rallye_id }` im Body |
 | GET | `/admin/start-codes.php?rallye_id=` | Admin/Viewer | Alle Startcodes (benutzt+unbenutzt) |
 | POST | `/admin/start-codes/generate.php` | Admin | Neue Startcodes erzeugen |
 | GET/PUT/DELETE | `/admin/teams.php` | Admin (PUT/DELETE) / Admin+Viewer (GET) | Teams verwalten |
-| POST | `/admin/teams/reset-progress.php` | Admin | Fortschritt eines Teams zurucksetzen |
+| POST | `/admin/teams/reset-progress.php` | Admin | Fortschritt eines Teams zurücksetzen |
 | GET/POST/PUT/DELETE | `/admin/stations.php` | Admin (Schreiben) / Admin+Viewer (Lesen) | CRUD Stationen |
-| POST | `/admin/stations/unlock-for-team.php` | Admin | Manuelle Freischaltung fur ein Team |
-| GET/POST/PUT/DELETE | `/admin/puzzles.php?station_id=` | Admin (Schreiben) / Admin+Viewer (Lesen) | CRUD Ratsel inkl. Antworten |
+| POST | `/admin/stations/unlock-for-team.php` | Admin | Manuelle Freischaltung für ein Team |
+| GET/POST/PUT/DELETE | `/admin/puzzles.php?station_id=` | Admin (Schreiben) / Admin+Viewer (Lesen) | CRUD Rätsel inkl. Antworten |
 | GET/POST/PUT/DELETE | `/admin/story-nodes.php?rallye_id=` | Admin (Schreiben) / Admin+Viewer (Lesen) | CRUD Chat-Knoten |
 | GET/POST/PUT/DELETE | `/admin/story-node-options.php?node_id=` | Admin (Schreiben) / Admin+Viewer (Lesen) | CRUD Knoten-Optionen |
-| GET/POST/PUT/DELETE | `/admin/suspects.php?rallye_id=` | Admin (Schreiben) / Admin+Viewer (Lesen) | CRUD Verdachtige |
+| GET/POST/PUT/DELETE | `/admin/suspects.php?rallye_id=` | Admin (Schreiben) / Admin+Viewer (Lesen) | CRUD Verdächtige |
 | GET | `/admin/photo-submissions.php?rallye_id=` | Admin/Viewer | Liste aller Foto-Einsendungen |
-| POST | `/admin/photo-submissions/award.php` | Admin | Bonus-Punkte fur Einsendung vergeben |
-| POST | `/admin/media/upload.php` | Admin | Bild/Audio/Video-Upload (multipart) |
+| POST | `/admin/photo-submissions/award.php` | Admin | Bonus-Punkte für Einsendung vergeben |
+| POST | `/admin/media/upload.php` | Admin | Bild/Audio/Video-Upload (multipart), schreibt in `media_library` |
 | POST | `/admin/game/start.php` | Admin | Spiel starten/fortsetzen |
 | POST | `/admin/game/pause.php` | Admin | Spiel pausieren |
 | POST | `/admin/game/end.php` | Admin | Spiel beenden |
-| POST | `/admin/game/reset.php` | Admin | Rallye-Fortschritt vollstandig zurucksetzen |
+| POST | `/admin/game/reset.php` | Admin | Rallye-Fortschritt vollständig zurücksetzen |
 
 ### `GET /admin/dashboard.php?rallye_id=`
 **Response 200:**
@@ -384,20 +385,26 @@ Response 201: `{ "success": true, "broadcast_id": 7 }`
 Body: `{ "rallye_id": 14, "count": 5 }` (1–200)
 Response 201: `{ "success": true, "codes": ["AB3C7DXQ", "..."] }`
 
+### `POST /admin/rallyes/archive.php`
+Body: `{ "rallye_id": 14 }`
+Response 200: `{ "success": true }`; 404 falls Rallye nicht gefunden.
+Setzt `is_archived = 1, is_game_running = 0`.
+**GELÖST (13.09.2026):** Der Admin-App-Client sendete bisher `{ id }` statt `{ rallye_id }` — dieser Feldnamen-Mismatch führte serverseitig zu `400: rallye_id fehlt` über `requireFields()`. Fix in `frontend/admin-app/src/api/client.js` (Commit `ee40e424`).
+
 ### `GET/POST/PUT/DELETE /admin/puzzles.php`
-GET liefert pro Ratsel zusatzlich `answers: [{ id, answer_text, is_correct }]`. POST/PUT-Body erlaubt optionales `answers`-Array — bei PUT werden bestehende Antworten vollstandig ersetzt (Delete + Insert).
+GET liefert pro Rätsel zusätzlich `answers: [{ id, answer_text, is_correct }]`. POST/PUT-Body erlaubt optionales `answers`-Array — bei PUT werden bestehende Antworten vollständig ersetzt (Delete + Insert).
 
 ### `GET/POST/PUT/DELETE /admin/stations.php`
 Feld-Whitelist bei POST/PUT: `title, description, story_text, qr_code, latitude, longitude, geofence_radius_meters, unlock_type, discovery_mode, order_index, points, is_active`. Validiert `unlock_type` gegen `['qr','gps','manual','auto']` und `discovery_mode` gegen `['lead_only','proximity','both']`.
 
 ### `GET/POST/PUT/DELETE /admin/story-nodes.php`
-POST erfordert `rallye_id, type, message_text, response_type`. Feld-Whitelist bei PUT umfasst zusatzlich `is_active`. Validiert `media_type` gegen `['none','audio_ref','video_ref','image_ref']`.
+POST erfordert `rallye_id, type, message_text, response_type`. Feld-Whitelist bei PUT umfasst zusätzlich `is_active`. Validiert `media_type` gegen `['none','audio_ref','video_ref','image_ref']`.
 
 ### `GET/POST/PUT/DELETE /admin/story-node-options.php`
 POST erfordert `node_id, label`. Felder: `label, correct_value, leads_to_node_id, blocks_alternate_node_id, unlocks_suspect_id, unlocks_station_id`.
 
 ### `GET/POST/PUT/DELETE /admin/suspects.php`
-POST erfordert `rallye_id, name`. Felder: `name, portrait_icon, is_guilty, wrong_pick_reaction_text`.
+POST erfordert `rallye_id, name`. Felder: `name, portrait_icon, is_guilty, wrong_pick_reaction_text`. **Hinweis:** Keine serverseitige Eindeutigkeitsprüfung für `is_guilty` — mehrere Schuldige pro Rallye sind aktuell möglich (siehe `docs/03_Datenbank.md`, Abschnitt `suspects`).
 
 ### `GET /admin/photo-submissions.php?rallye_id=`
 **Response 200:**
@@ -416,7 +423,7 @@ Response 200: `{ "success": true }`; 409 falls bereits bewertet, 404 falls nicht
 `multipart/form-data`: `rallye_id`, `file_type` (`image|audio|video`), `file`
 Limits: Bild 5 MB, Audio/Video 20 MB. Erlaubte Endungen: `jpg/jpeg/png/webp`, `mp3/wav/ogg`, `mp4/webm/mov`.
 Response 201: `{ "success": true, "media_id": 12, "url": "/uploads/14/story/<uuid>.jpg" }`
-**Hinweis:** schreibt in Tabelle `media_library` — im gesichteten DB-Export nicht vorgefunden (siehe Datenbank-Dokument, Abschnitt 3).
+Schreibt in Tabelle `media_library` — vollständiges Schema siehe `docs/03_Datenbank.md`, Abschnitt `media_library`.
 
 ### `POST /admin/game/start.php`
 Body: `{ "rallye_id": 14 }`
@@ -424,27 +431,27 @@ Unterscheidet Erststart (setzt `game_start_time` + berechnet `game_end_time` aus
 
 ### `POST /admin/game/reset.php`
 Body: `{ "rallye_id": 14, "confirm": true }`
-Loscht `team_attempts`, `station_unlocks`, `team_progress`, `teams`, `broadcasts`, `start_codes` der Rallye; setzt Zeitfelder zuruck. **Destruktive Operation.**
+Löscht `team_attempts`, `station_unlocks`, `team_progress`, `teams`, `broadcasts`, `start_codes` der Rallye; setzt Zeitfelder zurück. **Destruktive Operation.**
 
 ### `POST /admin/teams/reset-progress.php`
 Body: `{ "team_id": 33 }`
-Loscht `team_attempts` und `station_unlocks` des Teams, setzt `team_progress`-Zahler auf 0.
+Löscht `team_attempts` und `station_unlocks` des Teams, setzt `team_progress`-Zähler auf 0.
 
 ---
 
 ## 6. System-Endpunkt
 
 ### `GET /system/cleanup.php?token=<cleanup_secret>`
-**Vollstandig verifiziert (GitHub, SHA: 42ea00ac):**
+**Vollständig verifiziert (GitHub, SHA: 42ea00ac):**
 
 **Voraussetzungen:**
 - Methode: `GET`
 - Query-Parameter: `token`
 - Token-Vergleich: `hash_equals((string) $config['cleanup_secret'], $token)`
 
-**Response 401 (ungultiges Token):**
+**Response 401 (ungültiges Token):**
 ```json
-{ "success": false, "error": "Ungultiges Cleanup-Token" }
+{ "success": false, "error": "Ungültiges Cleanup-Token" }
 ```
 
 **Response 200 (Erfolg):**
@@ -452,33 +459,32 @@ Loscht `team_attempts` und `station_unlocks` des Teams, setzt `team_progress`-Za
 { "success": true, "cleaned_teams": 3 }
 ```
 
-Ruft `cleanupExpiredPositions($pdo, 4)` auf und gibt die Anzahl bereinigter Teams zuruck.
+Ruft `cleanupExpiredPositions($pdo, 4)` auf und gibt die Anzahl bereinigter Teams zurück.
 
 ---
 
-## 7. Fehlercodes (durchgangiges Schema)
+## 7. Fehlercodes (durchgängiges Schema)
 
 | Code | Bedeutung |
 |---|---|
-| 400 | Fehlende/ungultige Parameter |
-| 401 | Nicht authentifiziert / Token ungultig oder abgelaufen |
+| 400 | Fehlende/ungültige Parameter |
+| 401 | Nicht authentifiziert / Token ungültig oder abgelaufen |
 | 403 | Authentifiziert, aber keine Berechtigung (z. B. Viewer bei Schreibzugriff) oder Spiel nicht aktiv |
 | 404 | Ressource nicht gefunden |
 | 405 | HTTP-Methode nicht erlaubt |
-| 409 | Konflikt (z. B. bereits gelost, bereits bewertet, bereits registriert) |
-| 429 | Rate-Limit uberschritten |
+| 409 | Konflikt (z. B. bereits gelöst, bereits bewertet, bereits registriert) |
+| 429 | Rate-Limit überschritten |
 | 500 | Interner Serverfehler |
 
 Alle Fehlerantworten folgen dem Format: `{ "success": false, "error": "<Meldung>" }`.
 
 ---
 
-## 8. Bekannte Detailpunkte fur die Weiterentwicklung
+## 8. Bekannte Detailpunkte für die Weiterentwicklung
 
-1. **Feldnamen-Mismatch** bei `archiveRallye()` — Client sendet `{ id }`, Backend erwartet `{ rallye_id }` (laut Code in `admin/rallyes/archive.php`). Vor Produktivnutzung testen.
-2. `media_library`-Tabelle im DB-Export nicht gefunden, aber von `admin/media/upload.php` beschrieben — vor Produktivbetrieb prufen, ob Tabelle existiert.
-3. Zwei parallele Ermittlungsakte-Systeme (`team_story_clues` + `team_story_log`) — Migration noch nicht abgeschlossen, beide Pfade werden parallel bedient.
+1. Zwei parallele Ermittlungsakte-Systeme (`team_story_clues` + `team_story_log`) — Migration noch nicht abgeschlossen, beide Pfade werden parallel bedient (siehe `docs/03_Datenbank.md`, Abschnitt `team_story_clues`).
+2. `admin/suspects.php` prüft nicht serverseitig, ob bereits ein anderer Verdächtiger als schuldig markiert ist (siehe `docs/03_Datenbank.md`, Abschnitt `suspects`).
 
 ---
 
-**Quelle:** Vollstandiger Codeexport `backend/` (57 Dateien, Stand 12.09.2026) + GitHub-Abgleich (`team/avatars/upload.php`, `team/photos/submit.php`, `system/cleanup.php`).
+**Quelle:** Vollständiger Codeexport `backend/` (57 Dateien, Stand 12.09.2026) + GitHub-Abgleich (`team/avatars/upload.php`, `team/photos/submit.php`, `system/cleanup.php`, `admin/rallyes/archive.php`).
