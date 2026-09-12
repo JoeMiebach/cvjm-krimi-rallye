@@ -10,6 +10,10 @@
 // ergaenzt.
 // GEAENDERT (10.09.2026, Commit 2): requestMultipart() + uploadStoryMedia()
 // ergaenzt -- Upload-Endpoint fuer Bilder/Audio/Video im Story-Node-Editor.
+// GEFIXT (13.09.2026): archiveRallye() sendet jetzt { rallye_id } statt
+// { id } im Body -- das Backend (admin/rallyes/archive.php) liest
+// $body['rallye_id'], der bisherige Feldname wurde vom Server ignoriert,
+// wodurch requireFields() fehlschlug und die Archivierung nie funktionierte.
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -132,7 +136,7 @@ export const api = {
   getRallyes: () => request('/admin/rallyes.php'),
   createRallye: (payload) => request('/admin/rallyes.php', { method: 'POST', body: payload }),
   updateRallye: (id, payload) => request('/admin/rallyes.php', { method: 'PUT', query: { id }, body: payload }),
-  archiveRallye: (id) => request('/admin/rallyes/archive.php', { method: 'POST', body: { id } }),
+  archiveRallye: (id) => request('/admin/rallyes/archive.php', { method: 'POST', body: { rallye_id: id } }),
   generateStartCodes: (rallyeId, count) => request('/admin/start-codes/generate.php', { method: 'POST', body: { rallye_id: rallyeId, count } }),
   getStartCodes: (rallyeId) => request('/admin/start-codes.php', { query: { rallye_id: rallyeId } }),
   getTeams: (rallyeId) => request('/admin/teams.php', { query: { rallye_id: rallyeId } }),
