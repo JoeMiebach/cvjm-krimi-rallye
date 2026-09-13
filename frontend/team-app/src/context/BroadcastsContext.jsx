@@ -1,14 +1,9 @@
 // team-app/src/context/BroadcastsContext.jsx
-// v4: FIX -- Nachrichten verschwanden nach dem Lesen + Seiten-Reload dauerhaft.
-// Ursache: der 'since'-Zeitstempel fuer das inkrementelle Polling wurde in
-// localStorage persistiert, der eigentliche Nachrichtenverlauf (messages)
-// aber nur im React-State gehalten. Nach einem Reload startete messages bei
-// [], waehrend sinceRef weiterhin den bereits fortgeschrittenen Zeitstempel
-// aus localStorage las -- der naechste Poll fragte dann nur noch Broadcasts
-// NACH diesem Zeitpunkt ab, die bereits zugestellte Nachricht kam serverseitig
-// nie wieder zurueck und blieb damit fuer immer unsichtbar.
-// Jetzt wird der komplette Nachrichtenverlauf zusaetzlich in localStorage
-// gespeichert und beim Mount vor dem ersten Poll wiederhergestellt.
+// v5: Nachrichtenverlauf bleibt jetzt auch nach Logout + neuem Login erhalten.
+// Der Verlauf wird dauerhaft in localStorage gespeichert und nur zurückgesetzt,
+// wenn das Backend beim Pollen explizit einen leeren Verlauf liefert (z. B.
+// nach einem Rallye-Reset). Beim Logout werden nur since und der Unread-Counter
+// zurückgesetzt, nicht aber der gespeicherte Nachrichtenverlauf.
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { api } from '../api/client';
@@ -80,17 +75,14 @@ export function BroadcastsProvider({ children }) {
   const sinceRef = useRef(getStoredSince());
 
   useEffect(() => {
-    // Nur bei einem EXPLIZITEN Logout den Verlauf zuruecksetzen. Der
-    // Uebergangsstatus 'checking' (beim App-Start, wAehrend der
-    // Auto-Re-Login-Request noch laeuft) und 'needsTeamName' sind KEIN
-    // Logout und duerfen den gespeicherten Stand nicht loeschen.
+    // Beim Logout nur since und Unread-Counter zurücksetzen, nicht den Verlauf.
+    // Der Verlauf bleibt im localStorage erhalten und wird beim nächsten Login
+    // wiederhergestellt – so sind alte Nachrichten auch nach neuem Login sichtbar.
     if (status === 'loggedOut') {
-      setMessages([]);
       setLatestUnseen(null);
       setUnreadCount(0);
       sinceRef.current = EPOCH;
       clearStoredSince();
-      clearStoredMessages();
       return;
     }
 
@@ -100,9 +92,8 @@ export function BroadcastsProvider({ children }) {
       return;
     }
 
-    // Beim tatsaechlichen Eintritt in 'loggedIn' den zuletzt gespeicherten
-    // Stand (Nachrichten UND since) uebernehmen -- ueberlebt jetzt einen
-    // Reload korrekt, weil beide Werte konsistent aus localStorage kommen.
+    // Beim Eintritt in 'loggedIn' den gespeicherten Stand (Nachrichten UND since)
+    // übernehmen -- überlebt jetzt auch einen Logout + erneuten Login.
     sinceRef.current = getStoredSince();
     setMessages(getStoredMessages());
 
@@ -111,7 +102,19 @@ export function BroadcastsProvider({ children }) {
       try {
         const result = await api.getBroadcasts(sinceRef.current);
         const incoming = result?.broadcasts || [];
-        if (cancelled || incoming.length === 0) return;
+        if (cancelled) return;
+
+        if (incoming.length === 0) {
+          // Backend liefert explizit leeren Verlauf -> lokalen Verlauf zurücksetzen
+          // (z. B. nach Rallye-Reset oder manueller Löschung im Admin-Bereich)
+          setMessages([]);
+          setStoredMessages([]);
+          setLatestUnseen(null);
+          setUnreadCount(0);
+          sinceRef.current = EPOCH;
+          clearStoredSince();
+          return;
+        }
 
         setMessages((prev) => {
           const next = [...prev, ...incoming];
