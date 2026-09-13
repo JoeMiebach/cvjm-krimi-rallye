@@ -1,24 +1,26 @@
 // team-app/src/context/BroadcastsContext.jsx
-// v3: Fix für den eigentlichen Bug -- status durchläuft beim App-Start
-// erst 'checking' (siehe AuthContext.jsx), bevor er zu 'loggedIn' oder
-// 'loggedOut' wechselt. Die alte Bedingung "status !== 'loggedIn'" hat
-// 'checking' fälschlich wie einen Logout behandelt und sofort den
-// gespeicherten since-Wert gelöscht -- noch bevor der Auto-Re-Login
-// (mit dem gespeicherten Startcode) überhaupt abgeschlossen war. Dadurch
-// wurde bei JEDEM Reload der Fix aus v2 sofort wieder ausgehebelt.
-// Jetzt wird NUR bei status === 'loggedOut' (explizites Logout) gelöscht;
-// bei 'checking' und 'needsTeamName' bleibt der gespeicherte Stand unberührt.
+// v4: FIX -- Nachrichten verschwanden nach dem Lesen + Seiten-Reload dauerhaft.
+// Ursache: der 'since'-Zeitstempel fuer das inkrementelle Polling wurde in
+// localStorage persistiert, der eigentliche Nachrichtenverlauf (messages)
+// aber nur im React-State gehalten. Nach einem Reload startete messages bei
+// [], waehrend sinceRef weiterhin den bereits fortgeschrittenen Zeitstempel
+// aus localStorage las -- der naechste Poll fragte dann nur noch Broadcasts
+// NACH diesem Zeitpunkt ab, die bereits zugestellte Nachricht kam serverseitig
+// nie wieder zurueck und blieb damit fuer immer unsichtbar.
+// Jetzt wird der komplette Nachrichtenverlauf zusaetzlich in localStorage
+// gespeichert und beim Mount vor dem ersten Poll wiederhergestellt.
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { api } from '../api/client';
 
 const POLL_INTERVAL_MS = 10_000;
-const STORAGE_KEY = 'viking_rallye_broadcasts_since';
+const SINCE_STORAGE_KEY = 'viking_rallye_broadcasts_since';
+const MESSAGES_STORAGE_KEY = 'viking_rallye_broadcasts_messages';
 const EPOCH = new Date(0).toISOString();
 
 function getStoredSince() {
   try {
-    return localStorage.getItem(STORAGE_KEY) || EPOCH;
+    return localStorage.getItem(SINCE_STORAGE_KEY) || EPOCH;
   } catch {
     return EPOCH;
   }
@@ -26,15 +28,43 @@ function getStoredSince() {
 
 function setStoredSince(value) {
   try {
-    localStorage.setItem(STORAGE_KEY, value);
+    localStorage.setItem(SINCE_STORAGE_KEY, value);
   } catch {
-    // localStorage evtl. nicht verfügbar (z. B. privater Modus)
+    // localStorage evtl. nicht verfuegbar (z. B. privater Modus)
   }
 }
 
 function clearStoredSince() {
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(SINCE_STORAGE_KEY);
+  } catch {
+    // ignorieren
+  }
+}
+
+function getStoredMessages() {
+  try {
+    const raw = localStorage.getItem(MESSAGES_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function setStoredMessages(messages) {
+  try {
+    localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(messages));
+  } catch {
+    // localStorage evtl. nicht verfuegbar oder Quota ueberschritten -- Verlauf
+    // bleibt dann nur fuer die laufende Session sichtbar, kein harter Fehler.
+  }
+}
+
+function clearStoredMessages() {
+  try {
+    localStorage.removeItem(MESSAGES_STORAGE_KEY);
   } catch {
     // ignorieren
   }
@@ -44,34 +74,37 @@ const BroadcastsContext = createContext(null);
 
 export function BroadcastsProvider({ children }) {
   const { status } = useAuth();
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => getStoredMessages());
   const [latestUnseen, setLatestUnseen] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const sinceRef = useRef(getStoredSince());
 
   useEffect(() => {
-    // Nur bei einem EXPLIZITEN Logout den Verlauf zurücksetzen. Der
-    // Übergangsstatus 'checking' (beim App-Start, während der
-    // Auto-Re-Login-Request noch läuft) und 'needsTeamName' sind KEIN
-    // Logout und dürfen den gespeicherten Stand nicht löschen.
+    // Nur bei einem EXPLIZITEN Logout den Verlauf zuruecksetzen. Der
+    // Uebergangsstatus 'checking' (beim App-Start, wAehrend der
+    // Auto-Re-Login-Request noch laeuft) und 'needsTeamName' sind KEIN
+    // Logout und duerfen den gespeicherten Stand nicht loeschen.
     if (status === 'loggedOut') {
       setMessages([]);
       setLatestUnseen(null);
       setUnreadCount(0);
       sinceRef.current = EPOCH;
       clearStoredSince();
+      clearStoredMessages();
       return;
     }
 
     if (status !== 'loggedIn') {
       // 'checking' oder 'needsTeamName' -- noch nicht bereit zum Pollen,
-      // aber bewusst kein Reset des gespeicherten since-Werts.
+      // aber bewusst kein Reset des gespeicherten Stands.
       return;
     }
 
-    // Beim tatsächlichen Eintritt in 'loggedIn' den zuletzt gespeicherten
-    // Stand übernehmen (überlebt jetzt einen Reload korrekt).
+    // Beim tatsaechlichen Eintritt in 'loggedIn' den zuletzt gespeicherten
+    // Stand (Nachrichten UND since) uebernehmen -- ueberlebt jetzt einen
+    // Reload korrekt, weil beide Werte konsistent aus localStorage kommen.
     sinceRef.current = getStoredSince();
+    setMessages(getStoredMessages());
 
     let cancelled = false;
     async function poll() {
@@ -80,7 +113,11 @@ export function BroadcastsProvider({ children }) {
         const incoming = result?.broadcasts || [];
         if (cancelled || incoming.length === 0) return;
 
-        setMessages((prev) => [...prev, ...incoming]);
+        setMessages((prev) => {
+          const next = [...prev, ...incoming];
+          setStoredMessages(next);
+          return next;
+        });
         setLatestUnseen(incoming[incoming.length - 1]);
         setUnreadCount((prev) => prev + incoming.length);
 
@@ -88,7 +125,7 @@ export function BroadcastsProvider({ children }) {
         sinceRef.current = newSince;
         setStoredSince(newSince);
       } catch {
-        // Poll-Fehler bewusst leise ignorieren, nächster Versuch in 10s
+        // Poll-Fehler bewusst leise ignorieren, naechster Versuch in 10s
       }
     }
 
