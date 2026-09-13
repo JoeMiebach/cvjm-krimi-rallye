@@ -2,7 +2,7 @@
 
 ## 1. Team-Fortschritt im Detail
 
-**Zweck:** Admin sieht exakt, wo jedes Team steht – welche Chat-Nodes empfangen, welche Antworten gegeben, welche Stationen gelÃ¶st.
+**Zweck:** Admin sieht exakt, wo jedes Team steht – welche Story-Nodes empfangen, welche Antworten gegeben, welche Stationen gelÃ¶st.
 
 **Endpoint:**
 ```
@@ -16,14 +16,14 @@ GET /api/admin/team/{id}/progress
   "name": "Team Viking",
   "current_node_id": 5,
   "game_session_id": 12,
-  "chat_history": [
-    {"node_id": 1, "received_at": "2026-09-13T14:05:00Z", "answer": "Wikinger", "answered_at": "2026-09-13T14:06:30Z", "correct": true},
-    {"node_id": 3, "received_at": "2026-09-13T14:10:00Z", "answer": "Marktplatz", "answered_at": "2026-09-13T14:12:00Z", "correct": true},
-    {"node_id": 5, "received_at": "2026-09-13T14:15:00Z", "answer": null, "answered_at": null, "correct": null}
+  "story_log": [
+    {"node_id": 1, "delivered_at": "2026-09-13T14:05:00Z", "team_response": "Wikinger", "responded_at": "2026-09-13T14:06:30Z", "is_completed": true},
+    {"node_id": 3, "delivered_at": "2026-09-13T14:10:00Z", "team_response": "Marktplatz", "responded_at": "2026-09-13T14:12:00Z", "is_completed": true},
+    {"node_id": 5, "delivered_at": "2026-09-13T14:15:00Z", "team_response": null, "responded_at": null, "is_completed": false}
   ],
-  "solved_stations": [
-    {"station_id": "A1", "solved_at": "2026-09-13T14:07:00Z", "code": "VIKING123"},
-    {"station_id": "B2", "solved_at": "2026-09-13T14:13:00Z", "code": "MARKT456"}
+  "station_unlocks": [
+    {"station_id": "A1", "unlocked_at": "2026-09-13T14:07:00Z", "unlocked_by_admin_id": null, "manually_unlocked": 0},
+    {"station_id": "B2", "unlocked_at": "2026-09-13T14:13:00Z", "unlocked_by_admin_id": 2, "manually_unlocked": 1}
   ],
   "hints_used": 2,
   "last_active": "2026-09-13T14:16:00Z"
@@ -33,15 +33,15 @@ GET /api/admin/team/{id}/progress
 **UI:**
 - Im Admin-Dashboard -> Teams-Tab: Button "Details" pro Team
 - Ãffnet Modal/Seite mit:
-  - Timeline der Chat-Nodes (empfangen -> beantwortet)
-  - Liste der gelÃ¶sten Stationen mit Zeitstempel
+  - Timeline der Story-Nodes (empfangen -> beantwortet)
+  - Liste der freigeschalteten Stationen mit Zeitstempel
   - Heatmap: Wo war das Team unterwegs? (falls GPS getrackt wird)
 
 ---
 
 ## 2. God Mode: Team-Ansicht simulieren
 
-**Zweck:** Admin sieht exakt die Team-UI (Chat, Stationen-Liste, Buttons) â aber mit zusÃ¤tzlichen Admin-Controls.
+**Zweck:** Admin sieht exakt die Team-UI (Story-Chat, Stationen-Liste, Buttons) â aber mit zusÃ¤tzlichen Admin-Controls.
 
 **Endpoint:**
 ```
@@ -88,7 +88,7 @@ POST /api/admin/team/{id}/send-node
 
 **Logik:**
 - Ãberspringt alle Checks (kein GPS, kein QR, keine Reihenfolge)
-- Schreibt Eintrag in `chat_history`
+- Schreibt Eintrag in `team_story_log` (`delivered_at`, `responded_at` = NULL)
 - Team-App empfÃ¤ngt Node via Polling/WebSocket
 
 ---
@@ -102,7 +102,12 @@ POST /api/admin/team/{id}/unlock-station
 ```
 
 **Logik:**
-- Setzt `is_unlocked = 1` in `team_stations`
+- UPSERT in `station_unlocks`:
+  ```sql
+  INSERT INTO station_unlocks (team_id, station_id, unlocked_at, unlock_source, manually_unlocked)
+  VALUES (?, ?, NOW(), 'manual', 1)
+  ON DUPLICATE KEY UPDATE unlocked_at = NOW(), unlock_source = 'manual', manually_unlocked = 1
+  ```
 - Kein GPS/QR-Check nÃ¶tig
 - Team kann Station sofort als "gelÃ¶st" markieren
 
@@ -116,9 +121,9 @@ POST /api/admin/team/{id}/reset
 ```
 
 **Logik:**
-- Setzt `current_node_id = 1`
-- LÃ¶scht `chat_history` (oder markiert als archiviert)
-- BehÃ¤lt `solved_stations` (optional: auch lÃ¶schbar)
+- `team_story_log`: EintrÃ¤ge lÃ¶schen (oder als archiviert markieren)
+- `station_unlocks`: `manually_unlocked = 0` setzen (optional: alle EintrÃ¤ge lÃ¶schen)
+- `teams`: `current_latitude`, `current_longitude` = NULL (optional)
 
 ---
 
@@ -132,7 +137,7 @@ POST /api/admin/team/{id}/send-hint
 
 **Verhalten:**
 - Team-App zeigt Toast/Banner: "Hinweis vom Admin: ..."
-- Optional: Als nÃ¤chster Chat-Node einfÃ¼gen (Typ `hint`)
+- Eintrag in `team_hints`-Tabelle
 
 ---
 
@@ -167,48 +172,69 @@ GET /api/admin/team/{id}/location
 
 ---
 
-## Datenbank-ErgÃ¤nzungen
+## Datenbank-ErgÃ¤nzungen (Migration)
 
 ```sql
--- Chat-Historie pro Team
-CREATE TABLE team_chat_history (
+-- 1. Chat-Historie pro Team (ergÃ¤nzend zu team_story_log)
+CREATE TABLE IF NOT EXISTS team_chat_history (
   id INT PRIMARY KEY AUTO_INCREMENT,
   team_id INT NOT NULL,
   node_id INT NOT NULL,
-  received_at DATETIME NOT NULL,
+  received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   answer TEXT NULL,
   answered_at DATETIME NULL,
   is_correct TINYINT(1) NULL,
-  FOREIGN KEY (team_id) REFERENCES teams(id),
-  FOREIGN KEY (node_id) REFERENCES chat_nodes(id)
-);
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_team (team_id),
+  INDEX idx_node (node_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Admin-Aktionen loggen (wer hat was gemacht?)
-CREATE TABLE admin_actions (
+-- 2. Admin-Aktionen loggen (ergÃ¤nzend zu admin_log)
+CREATE TABLE IF NOT EXISTS admin_actions (
   id INT PRIMARY KEY AUTO_INCREMENT,
   admin_user_id INT NOT NULL,
   team_id INT NOT NULL,
-  action_type ENUM('send_node', 'unlock_station', 'reset_team', 'send_hint') NOT NULL,
+  action_type ENUM('send_node', 'unlock_station', 'reset_team', 'send_hint', 'unlock_station_no_check') NOT NULL,
   action_data JSON NULL,
-  created_at DATETIME NOT NULL,
-  FOREIGN KEY (admin_user_id) REFERENCES admin_users(id),
-  FOREIGN KEY (team_id) REFERENCES teams(id)
-);
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_admin (admin_user_id),
+  INDEX idx_team (team_id),
+  INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 3. Team-Hinweise
+CREATE TABLE IF NOT EXISTS team_hints (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  team_id INT NOT NULL,
+  message TEXT NOT NULL,
+  is_read TINYINT(1) DEFAULT 0,
+  read_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_team (team_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 4. Spalte fÃ¼r manuell freigeschaltete Stationen
+ALTER TABLE station_unlocks 
+ADD COLUMN IF NOT EXISTS manually_unlocked TINYINT(1) DEFAULT 0 AFTER unlocked_at;
+
+-- 5. God Mode-Flag fÃ¼r Teams (optional)
+ALTER TABLE teams 
+ADD COLUMN IF NOT EXISTS is_god_mode TINYINT(1) DEFAULT 0 AFTER is_active;
 ```
 
 ---
 
 ## SicherheitsÃ¼berlegungen
 
-- God Mode nur fÃ¼r Admin-Rolle (nicht fÃ¼r Moderator)
-- Alle Admin-Aktionen loggen (`admin_actions`-Tabelle)
+- God Mode nur fÃ¼r Admin-Rolle (nicht fÃ¼r Viewer)
+- Alle Admin-Aktionen loggen (`admin_log` + `admin_actions`)
 - Team-App muss Admin-Overlay erkennen und nur im God Mode anzeigen
 
 ---
 
 ## NÃ¤chste Schritte
 
-1. `team_chat_history`-Tabelle anlegen (Migration)
+1. Migration `04_migration_god_mode.sql` ausfÃ¼hren
 2. Endpoint `GET /api/admin/team/{id}/progress` implementieren
 3. God Mode-UI als separates Template (`/admin/team/{id}/view`)
-4. Admin-Aktionen loggen (`admin_actions`-Tabelle)
+4. Admin-Aktionen loggen (`admin_actions`-Tabelle + `admin_log`)
