@@ -2,33 +2,34 @@
 /**
  * GET /api/admin/team/{id}/progress
  * 
- * Gibt detaillierten Fortschritt eines Teams zurück:
- * - Chat-Historie (Nodes, Antworten, Korrektheit)
- * - Gelö³¹¹ste Stationen
+ * Gibt detaillierten Fortschritt eines Teams zurÃ¼ck:
+ * - Story-Log (Nodes, Antworten, Korrektheit)
+ * - Freigeschaltete Stationen
  * - Hinweise verwendet
- * - Letzte Aktivitä¹¹t
+ * - Letzte AktivitÃ¤t
  */
 
 require_once __DIR__ . '/../../config/bootstrap.php';
-requireLogin(); // Nur für eingeloggte Admins
+requireLogin();
 
 header('Content-Type: application/json');
 
 $teamId = (int)($_GET['id'] ?? 0);
 if ($teamId <= 0) {
     http_response_code(400);
-    echo json_encode(['error' => 'Ungä¹¹ltige Team-ID']);
+    echo json_encode(['error' => 'UngÃ¼ltige Team-ID']);
     exit;
 }
 
 try {
     $pdo = getDbConnection();
     
-    // Team-Infos
+    // Team-Infos + Fortschritt
     $stmt = $pdo->prepare("
-        SELECT t.id, t.name, t.game_session_id, gs.current_node_id, gs.hints_used, gs.last_active
+        SELECT t.id, t.name, t.rallye_id, tp.stations_completed, tp.total_points, 
+               tp.total_hints_used, tp.last_activity, tp.started_at
         FROM teams t
-        LEFT JOIN game_sessions gs ON t.game_session_id = gs.id
+        JOIN team_progress tp ON t.id = tp.team_id
         WHERE t.id = ?
     ");
     $stmt->execute([$teamId]);
@@ -40,37 +41,38 @@ try {
         exit;
     }
     
-    // Chat-Historie
+    // Story-Log (Chat-Historie)
     $stmt = $pdo->prepare("
-        SELECT node_id, received_at, answer, answered_at, is_correct
-        FROM team_chat_history
+        SELECT node_id, delivered_at, team_response, responded_at, is_completed, attempts
+        FROM team_story_log
         WHERE team_id = ?
-        ORDER BY received_at ASC
+        ORDER BY delivered_at ASC
     ");
     $stmt->execute([$teamId]);
-    $chatHistory = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $storyLog = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Gelö³¹¹ste Stationen
+    // Freigeschaltete Stationen
     $stmt = $pdo->prepare("
-        SELECT ts.station_id, ts.solved_at, sc.code
-        FROM team_stations ts
-        JOIN station_codes sc ON ts.station_id = sc.station_id
-        WHERE ts.team_id = ? AND ts.is_unlocked = 1
-        ORDER BY ts.solved_at ASC
+        SELECT su.station_id, s.title, su.unlocked_at, su.unlock_source, su.manually_unlocked
+        FROM station_unlocks su
+        JOIN stations s ON su.station_id = s.id
+        WHERE su.team_id = ?
+        ORDER BY su.unlocked_at ASC
     ");
     $stmt->execute([$teamId]);
-    $solvedStations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stationUnlocks = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Antwort zusammenbauen
     echo json_encode([
         'team_id' => $team['id'],
         'name' => $team['name'],
-        'current_node_id' => (int)($team['current_node_id'] ?? 0),
-        'game_session_id' => $team['game_session_id'],
-        'chat_history' => $chatHistory,
-        'solved_stations' => $solvedStations,
-        'hints_used' => (int)($team['hints_used'] ?? 0),
-        'last_active' => $team['last_active']
+        'rallye_id' => $team['rallye_id'],
+        'stations_completed' => (int)$team['stations_completed'],
+        'total_points' => (int)$team['total_points'],
+        'story_log' => $storyLog,
+        'station_unlocks' => $stationUnlocks,
+        'hints_used' => (int)$team['total_hints_used'],
+        'last_active' => $team['last_activity']
     ], JSON_PRETTY_PRINT);
     
 } catch (PDOException $e) {

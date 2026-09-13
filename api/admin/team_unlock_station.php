@@ -20,13 +20,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $teamId = (int)($_GET['id'] ?? 0);
 if ($teamId <= 0) {
     http_response_code(400);
-    echo json_encode(['error' => 'Ungä¹¹ltige Team-ID']);
+    echo json_encode(['error' => 'UngÃ¼ltige Team-ID']);
     exit;
 }
 
 $input = json_decode(file_get_contents('php://input'), true);
-$stationId = $input['station_id'] ?? '';
-if (empty($stationId)) {
+$stationId = (int)($input['station_id'] ?? 0);
+if ($stationId <= 0) {
     http_response_code(400);
     echo json_encode(['error' => 'Station-ID fehlt']);
     exit;
@@ -36,7 +36,7 @@ try {
     $pdo = getDbConnection();
     $adminId = getAdminUserId();
     
-    // Station-Existenz prüfen
+    // Station-Existenz prÃ¼fen
     $stmt = $pdo->prepare("SELECT id, title FROM stations WHERE id = ?");
     $stmt->execute([$stationId]);
     $station = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -47,16 +47,20 @@ try {
         exit;
     }
     
-    // Eintrag in team_stations (UPSERT)
+    // UPSERT in station_unlocks
     $stmt = $pdo->prepare("
-        INSERT INTO team_stations (team_id, station_id, is_unlocked, manually_unlocked, unlocked_at)
-        VALUES (?, ?, 1, 1, NOW())
-        ON DUPLICATE KEY UPDATE is_unlocked = 1, manually_unlocked = 1, unlocked_at = NOW()
+        INSERT INTO station_unlocks (team_id, station_id, unlocked_at, unlock_source, manually_unlocked, unlocked_by_admin_id)
+        VALUES (?, ?, NOW(), 'manual', 1, ?)
+        ON DUPLICATE KEY UPDATE unlocked_at = NOW(), unlock_source = 'manual', manually_unlocked = 1, unlocked_by_admin_id = ?
     ");
-    $stmt->execute([$teamId, $stationId]);
+    $stmt->execute([$teamId, $stationId, $adminId, $adminId]);
     
     // Admin-Aktion loggen
-    logAdminAction($pdo, $adminId, $teamId, 'unlock_station_no_check', ['station_id' => $stationId, 'station_title' => $station['title']]);
+    logAdminAction($pdo, $adminId, null, 'unlock_station_no_check', json_encode([
+        'team_id' => $teamId,
+        'station_id' => $stationId,
+        'station_title' => $station['title']
+    ]));
     
     echo json_encode([
         'success' => true,
