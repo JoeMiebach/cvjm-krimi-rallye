@@ -1,38 +1,14 @@
-// admin-app/src/api/client.js
-// FIX: getPuzzles() ergänzt -- fehlte bisher komplett, dadurch konnte der
-// Rätsel-Editor keine bestehenden Rätsel pro Station laden.
-// NEU (09.09.2026): getStartCodes() ergänzt.
-// NEU (Phase D, Ermittler-Chat-System): CRUD für story-nodes.php,
-// story-node-options.php und suspects.php ergänzt.
-// NEU (Phase E, Ermittler-Chat-System): getPhotoSubmissions() und
-// awardPhotoPoints() ergänzt.
-// NEU (Phase F, Ermittler-Chat-System): CRUD fuer broadcast-templates.php
-// ergaenzt.
-// GEAENDERT (10.09.2026, Commit 2): requestMultipart() + uploadStoryMedia()
-// ergaenzt -- Upload-Endpoint fuer Bilder/Audio/Video im Story-Node-Editor.
-// GEFIXT (13.09.2026): archiveRallye() sendet jetzt { rallye_id } statt
-// { id } im Body -- das Backend (admin/rallyes/archive.php) liest
-// $body['rallye_id'], der bisherige Feldname wurde vom Server ignoriert,
-// wodurch requireFields() fehlschlug und die Archivierung nie funktionierte.
-
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 if (!API_BASE_URL) {
-  throw new Error(
-    'VITE_API_BASE_URL ist nicht gesetzt. Bitte .env bzw. .env.production anlegen (siehe .env.example).'
-  );
+  throw new Error('VITE_API_BASE_URL ist nicht gesetzt. Bitte .env bzw. .env.production anlegen (siehe .env.example).');
 }
 
 let authToken = null;
 let onUnauthorized = null;
 
-export function setAuthToken(token) {
-  authToken = token;
-}
-
-export function setUnauthorizedHandler(handler) {
-  onUnauthorized = handler;
-}
+export function setAuthToken(token) { authToken = token; }
+export function setUnauthorizedHandler(handler) { onUnauthorized = handler; }
 
 export class ApiError extends Error {
   constructor(status, message, data) {
@@ -44,91 +20,45 @@ export class ApiError extends Error {
 
 async function request(path, { method = 'GET', body, query } = {}) {
   const url = new URL(API_BASE_URL + path);
-  if (query) {
-    Object.entries(query).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
-    });
-  }
-
+  if (query) Object.entries(query).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
+  });
   const headers = { 'Content-Type': 'application/json' };
-  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
   let response;
-  try {
-    response = await fetch(url.toString(), {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined
-    });
-  } catch {
-    throw new ApiError(0, 'Netzwerkfehler – bitte Verbindung prüfen.', null);
-  }
-
+  try { response = await fetch(url.toString(), { method, headers, body: body ? JSON.stringify(body) : undefined }); }
+  catch { throw new ApiError(0, 'Netzwerkfehler – bitte Verbindung prüfen.', null); }
   let data = null;
-  try {
-    data = await response.json();
-  } catch {
-    // leerer Body möglich
-  }
-
+  try { data = await response.json(); } catch { /* leerer Body möglich */ }
   if (response.status === 401) {
     if (onUnauthorized) onUnauthorized();
     throw new ApiError(401, data?.error || 'Nicht authentifiziert', data);
   }
-
-  if (response.status === 403) {
-    throw new ApiError(403, data?.error || 'Keine Bearbeitungsrechte (Beobachter-Rolle)', data);
-  }
-
-  if (!response.ok) {
-    throw new ApiError(response.status, data?.error || 'Unbekannter Fehler', data);
-  }
-
+  if (response.status === 403) throw new ApiError(403, data?.error || 'Keine Bearbeitungsrechte (Beobachter-Rolle)', data);
+  if (!response.ok) throw new ApiError(response.status, data?.error || 'Unbekannter Fehler', data);
   return data;
 }
 
 async function requestMultipart(path, { method = 'POST', formData } = {}) {
   const url = new URL(API_BASE_URL + path);
   const headers = {};
-  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
   let response;
-  try {
-    response = await fetch(url.toString(), {
-      method,
-      headers,
-      body: formData
-    });
-  } catch {
-    throw new ApiError(0, 'Netzwerkfehler – bitte Verbindung prüfen.', null);
-  }
-
+  try { response = await fetch(url.toString(), { method, headers, body: formData }); }
+  catch { throw new ApiError(0, 'Netzwerkfehler – bitte Verbindung prüfen.', null); }
   let data = null;
-  try {
-    data = await response.json();
-  } catch {
-    // leerer Body möglich
-  }
-
+  try { data = await response.json(); } catch { /* leerer Body möglich */ }
   if (response.status === 401) {
     if (onUnauthorized) onUnauthorized();
     throw new ApiError(401, data?.error || 'Nicht authentifiziert', data);
   }
-
-  if (response.status === 403) {
-    throw new ApiError(403, data?.error || 'Keine Bearbeitungsrechte (Beobachter-Rolle)', data);
-  }
-
-  if (!response.ok) {
-    throw new ApiError(response.status, data?.error || 'Unbekannter Fehler', data);
-  }
-
+  if (response.status === 403) throw new ApiError(403, data?.error || 'Keine Bearbeitungsrechte (Beobachter-Rolle)', data);
+  if (!response.ok) throw new ApiError(response.status, data?.error || 'Unbekannter Fehler', data);
   return data;
 }
 
 export const api = {
-  adminLogin: (email, password) =>
-    request('/auth/admin-login.php', { method: 'POST', body: { email, password } }),
+  adminLogin: (email, password) => request('/auth/admin-login.php', { method: 'POST', body: { email, password } }),
   getDashboard: (rallyeId) => request('/admin/dashboard.php', { query: { rallye_id: rallyeId } }),
   getLeaderboard: (rallyeId) => request('/admin/leaderboard.php', { query: { rallye_id: rallyeId } }),
   getPositions: (rallyeId) => request('/admin/positions.php', { query: { rallye_id: rallyeId } }),
@@ -143,6 +73,8 @@ export const api = {
   updateTeam: (id, payload) => request('/admin/teams.php', { method: 'PUT', query: { id }, body: payload }),
   deleteTeam: (id) => request('/admin/teams.php', { method: 'DELETE', query: { id } }),
   resetTeamProgress: (teamId) => request('/admin/teams/reset-progress.php', { method: 'POST', body: { team_id: teamId } }),
+  getTeamMonitor: (teamId) => request('/admin/team-monitor.php', { query: { team_id: teamId } }),
+  sendStoryNodeToTeam: (teamId, nodeId) => request('/admin/team-send-node.php', { method: 'POST', body: { team_id: teamId, node_id: nodeId } }),
   getStations: (rallyeId) => request('/admin/stations.php', { query: { rallye_id: rallyeId } }),
   createStation: (payload) => request('/admin/stations.php', { method: 'POST', body: payload }),
   updateStation: (id, payload) => request('/admin/stations.php', { method: 'PUT', query: { id }, body: payload }),
@@ -177,9 +109,7 @@ export const api = {
   deleteBroadcastTemplate: (id) => request('/admin/broadcast-templates.php', { method: 'DELETE', query: { id } }),
   uploadStoryMedia: (rallyeId, fileType, fileBlob, fileName) => {
     const formData = new FormData();
-    formData.append('rallye_id', String(rallyeId));
-    formData.append('file_type', fileType);
-    formData.append('file', fileBlob, fileName);
+    formData.append('rallye_id', String(rallyeId)); formData.append('file_type', fileType); formData.append('file', fileBlob, fileName);
     return requestMultipart('/admin/media/upload.php', { method: 'POST', formData });
   }
 };
