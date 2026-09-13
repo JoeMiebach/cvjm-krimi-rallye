@@ -88,7 +88,6 @@ backend/
         └── photos/
             └── submit.php
 ```
-**GEÄNDERT (13.09.2026, Option A):** `team/clues.php` (Legacy-Ermittlungsakte-Endpunkt) wurde gelöscht — der Team-App-Client rief ihn bereits seit der Umstellung auf das Ermittler-Chat-System nicht mehr auf.
 
 ---
 
@@ -122,7 +121,7 @@ backend/
 | `requireAdminAuth(): array` | — | Admin-Datensatz, nur Rolle `admin`; 403 bei Viewer-Rolle |
 | `requireAdminOrViewerAuth(): array` | — | Admin-Datensatz, Rolle `admin` oder `viewer` |
 | `requireRallyeAccess(int $rallyeId, array $entity): void` | Ziel-Rallye-ID, Entität mit `rallye_id`-Feld | 403 bei Cross-Rallye-Zugriff |
-| `checkRateLimit(string $key, int $maxAttempts = 10, int $windowSeconds = 60): void` | eindeutiger Schlüssel (z. B. IP+Endpunkt) | 429 bei Überschreitung, sonst kein Rückgabewert |
+| `checkRateLimit(string $key, int $maxAttempts = 10, int $windowSeconds = 60): void` | eindeutiger Schlüssel (z. B. `endpunktname . '_' . $_SERVER['REMOTE_ADDR']`) | 429 bei Überschreitung, sonst kein Rückgabewert. Dateibasiert (`logs/ratelimit/<key>.json`), kein DB-Zugriff nötig. |
 
 ### `lib/geofence.php`
 | Funktion | Parameter | Rückgabe |
@@ -149,26 +148,41 @@ backend/
 
 ---
 
-## 3. Öffentliche Endpunkte
+## 3. Rate-Limiting
+
+`checkRateLimit(string $key, int $maxAttempts = 10, int $windowSeconds = 60)` wird ausschließlich auf den vier öffentlich erreichbaren, unauthentifizierten Auth-Endpunkten eingesetzt — dort, wo Brute-Force-Versuche ohne vorherige Authentifizierung möglich wären. Alle anderen Endpunkte erfordern bereits ein gültiges Token (`requireTeamAuth()`/`requireAdminAuth()`) und sind dadurch indirekt gegen Massenzugriffe abgesichert.
+
+| Endpunkt | Rate-Limit-Key | Grenzwert |
+|---|---|---|
+| `POST /auth/admin-login.php` | `'admin-login_' . $_SERVER['REMOTE_ADDR']` | 10 Versuche / 60 s pro IP |
+| `POST /auth/check-code.php` | `'check-code_' . $_SERVER['REMOTE_ADDR']` | 10 Versuche / 60 s pro IP |
+| `POST /auth/login.php` | `'login_' . $_SERVER['REMOTE_ADDR']` | 10 Versuche / 60 s pro IP |
+| `POST /auth/register.php` | `'register_' . $_SERVER['REMOTE_ADDR']` | 10 Versuche / 60 s pro IP |
+
+Das Limit ist bewusst pro IP-Adresse, nicht pro Team/Code gesetzt — bei einer Jugendfreizeit mit gemeinsamem WLAN teilen sich mehrere Teams dieselbe öffentliche IP. Bei sehr vielen Teams im selben Netz (z. B. > 10 gleichzeitige Login-Versuche innerhalb einer Minute) kann das Limit theoretisch versehentlich mehrere Teams gleichzeitig blockieren. Dies ist bei der Einsatzplanung zu beachten (z. B. Teams zeitlich gestaffelt einloggen lassen), wurde aber bislang nicht als Problem beobachtet.
+
+---
+
+## 4. Öffentliche Endpunkte
 
 ### `GET /config.php?rallye_id=`
 Kein Auth erforderlich. Liefert Rallye-Metadaten + Spielstatus (`is_game_running`, `is_paused`, `has_started`, `game_end_time`).
 
 ### `POST /auth/check-code.php`
-Body: `{ "code": "..." }` → `{ valid, already_registered }`
+Body: `{ "code": "..." }` → `{ valid, already_registered }`. Rate-limitiert.
 
 ### `POST /auth/register.php`
-Body: `{ "code", "team_name" }` → `{ success, team, token }`, setzt Cookie `team_code`.
+Body: `{ "code", "team_name" }` → `{ success, team, token }`, setzt Cookie `team_code`. `team.rallye_id` immer vorhanden. Rate-limitiert.
 
 ### `POST /auth/login.php`
-Body: `{ "code" }` → analog zu `register.php`.
+Body: `{ "code" }` → analog zu `register.php`. `team.rallye_id` immer vorhanden. Rate-limitiert.
 
 ### `POST /auth/admin-login.php`
 Body: `{ "email", "password" }` → `{ success, admin, token }`. Rate-limitiert.
 
 ---
 
-## 4. Team-Endpunkte
+## 5. Team-Endpunkte
 
 | Methode | Endpunkt | Auth | Beschreibung |
 |---|---|---|---|
@@ -190,11 +204,8 @@ Body: `{ "email", "password" }` → `{ success, admin, token }`. Rate-limitiert.
 | POST | `/team/photos/submit.php` | Team | Foto-Einreichung (multipart) |
 | POST | `/team/avatars/upload.php` | Team | Avatar-Upload (multipart) |
 
-**GELÖSCHT (13.09.2026):** `GET /team/clues.php` (Legacy-Ermittlungsakte) existiert nicht mehr.
-
 ### `POST /puzzles/submit.php`
 Body: `{ "puzzle_id", "answer", "hint_used" }`
-**GEÄNDERT (13.09.2026, Option A):** Response enthält kein `story_clue`-Feld mehr.
 **Response 200 (korrekt):**
 ```json
 {
@@ -214,7 +225,7 @@ Löst bei korrekter Antwort automatisch den verknüpften Chat-Knoten aus (`deliv
 
 ---
 
-## 5. Admin-Endpunkte
+## 6. Admin-Endpunkte
 
 | Methode | Endpunkt | Auth | Beschreibung |
 |---|---|---|---|
@@ -244,24 +255,39 @@ Löst bei korrekter Antwort automatisch den verknüpften Chat-Knoten aus (`deliv
 | POST | `/admin/game/reset.php` | Admin | Rallye vollständig zurücksetzen |
 
 ### `POST /admin/rallyes/archive.php`
-Body: `{ "rallye_id": 14 }`. Setzt `is_archived = 1, is_game_running = 0`. **GELÖST (13.09.2026):** Client sendete bisher `{ id }` statt `{ rallye_id }` (Commit `ee40e424`).
+Body: `{ "rallye_id": 14 }`. Setzt `is_archived = 1, is_game_running = 0`.
 
-### `GET/POST/PUT/DELETE /admin/puzzles.php`
-**GEÄNDERT (13.09.2026, Option A):** `story_clue_text` ist kein gültiges Feld mehr in POST/PUT-Payloads (Spalte entfernt).
+### `POST /admin/game/reset.php`
+Body: `{ "rallye_id": 14, "confirm": true }`. **Destruktive Operation**, läuft in einer Transaktion (`beginTransaction`/`commit`/`rollBack` bei Fehler).
 
-### `GET/POST/PUT/DELETE /admin/suspects.php`
-Keine serverseitige Eindeutigkeitsprüfung für `is_guilty` — mehrere Schuldige pro Rallye sind aktuell möglich.
+**Genaue Lösch-Reihenfolge** (wichtig für Fremdschlüssel-Abhängigkeiten):
+1. `team_attempts` aller Teams der Rallye (`WHERE team_id IN (...)`)
+2. `station_unlocks` aller Teams der Rallye
+3. `team_progress` aller Teams der Rallye
+4. `teams` der Rallye (`WHERE rallye_id = ?`)
+5. `broadcasts` der Rallye
+6. `start_codes` der Rallye
+7. `rallyes`-Zeile selbst wird NICHT gelöscht, sondern per `UPDATE` auf `is_game_running = 0, game_start_time = NULL, game_end_time = NULL, paused_at = NULL` zurückgesetzt
+
+**Nicht gelöscht werden:** `stations`, `puzzles`, `answers`, `story_nodes`, `story_node_options`, `suspects`, `broadcast_templates`, `media_library` — der komplette inhaltliche Aufbau der Rallye (Stationen, Rätsel, Story) bleibt erhalten, nur der Spielfortschritt und die Teams werden zurückgesetzt. Das ermöglicht einen erneuten Testlauf oder eine erneute Durchführung derselben Rallye ohne Neuaufbau.
+
+**Manuelle Prüf-Checkliste nach einem Reset:**
+- [ ] Admin-Dashboard zeigt `team_count: 0`
+- [ ] `GET /admin/teams.php` liefert leere Liste
+- [ ] `GET /admin/start-codes.php` liefert keine Codes mehr (alle gelöscht, müssen neu generiert werden)
+- [ ] Stationen/Rätsel/Story-Knoten sind unverändert weiterhin vorhanden
+- [ ] `is_game_running`, `game_start_time`, `game_end_time` sind zurückgesetzt (Dashboard zeigt "Noch nicht gestartet")
 
 ---
 
-## 6. System-Endpunkt
+## 7. System-Endpunkt
 
 ### `GET /system/cleanup.php?token=<cleanup_secret>`
-Token-Vergleich via `hash_equals()`. Response 200: `{ success: true, cleaned_teams: N }`. Response 401 bei ungültigem Token.
+Token-Vergleich via `hash_equals()`. Response 200: `{ success: true, cleaned_teams: N }`. Response 401 bei ungültigem Token. Einrichtung des `cleanup_secret` siehe `docs/02_Technische_Spezifikation.md`, Abschnitt "Lazy Cleanup".
 
 ---
 
-## 7. Fehlercodes
+## 8. Fehlercodes
 
 | Code | Bedeutung |
 |---|---|
@@ -276,10 +302,11 @@ Token-Vergleich via `hash_equals()`. Response 200: `{ success: true, cleaned_tea
 
 ---
 
-## 8. Bekannte Detailpunkte für die Weiterentwicklung
+## 9. Bekannte Detailpunkte für die Weiterentwicklung
 
-1. `admin/suspects.php` prüft nicht serverseitig, ob bereits ein anderer Verdächtiger als schuldig markiert ist.
+1. `admin/suspects.php` prüft nicht serverseitig, ob bereits ein anderer Verdächtiger als schuldig markiert ist — offene fachliche Entscheidung (Joe), ob dies ergänzt werden soll.
 2. `media_library`-Tabelle vor Produktivbetrieb auf STRATO verifizieren.
+3. **Encoding-Verifikation nicht abschließend möglich (13.09.2026):** Bei direkten `get_file_contents`-Aufrufen über die verfügbaren Tools wurde der Dateiinhalt nur als Metadaten (SHA, Größe), nicht als Rohtext zurückgegeben. Ob die in älteren Codeexporten sichtbaren Umlaut-Fehler („RÃ¤tsel" statt „Rätsel") tatsächlich im gespeicherten Quelltext oder nur im Export-/Anzeigeprozess vorliegen, konnte damit nicht abschließend geprüft werden. Empfehlung: Stichprobe direkt im GitHub-Web-Editor.
 
 ---
 
