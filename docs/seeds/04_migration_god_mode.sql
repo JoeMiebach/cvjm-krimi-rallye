@@ -2,8 +2,9 @@
 -- Datum: 2026-09-13
 -- Beschreibung: Tabellen für Team-Fortschritt, Chat-Historie und Admin-Aktionen
 
--- HINWEIS: Foreign Keys wurden entfernt, um errno:150 zu vermeiden
--- Falls FKs gewünscht sind, müssen Typen/Collation der referenzierten Tabellen geprüft werden
+-- HINWEIS: Diese Migration setzt voraus, dass Basis-Tabellen existieren:
+-- - teams, game_sessions, chat_nodes, stations, station_codes, admin_users
+-- Falls nicht, zuerst 01_schema.sql aus docs/seeds/ importieren!
 
 -- 1. Chat-Historie pro Team
 CREATE TABLE IF NOT EXISTS team_chat_history (
@@ -32,10 +33,23 @@ CREATE TABLE IF NOT EXISTS admin_actions (
   INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 3. team_stations: Spalte für manuell freigeschaltet
+-- 3. Team-Hinweise (wenn noch nicht vorhanden)
+CREATE TABLE IF NOT EXISTS team_hints (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  team_id INT NOT NULL,
+  message TEXT NOT NULL,
+  is_read TINYINT(1) DEFAULT 0,
+  read_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_team (team_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 4. team_stations: Spalte für manuell freigeschaltet
+-- Falls Tabelle fehlt, erst 01_schema.sql aus docs/seeds/ importieren!
 ALTER TABLE team_stations 
 ADD COLUMN IF NOT EXISTS manually_unlocked TINYINT(1) DEFAULT 0 AFTER is_unlocked;
 
--- 4. teams: Spalte für God Mode-Flag (optional, für Debugging)
+-- 5. teams: Spalte für God Mode-Flag (optional, für Debugging)
+-- Falls teams-Tabelle fehlt, erst 01_schema.sql importieren!
 ALTER TABLE teams 
 ADD COLUMN IF NOT EXISTS is_god_mode TINYINT(1) DEFAULT 0 AFTER game_session_id;
