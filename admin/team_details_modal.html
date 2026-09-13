@@ -1,10 +1,9 @@
 <!-- 
-  Team-Details Modal
-  Wird per JS geöffnet, wenn Admin auf "Details"-Button klickt
-  Daten werden via GET /api/admin/team/{id}/progress geladen
+  Team-Details Modal (in admin/teams.php einbinden)
+  Wird per JS geöffnet, wenn Admin auf "Details" klickt
 -->
 <div id="team-details-modal" class="modal" style="display:none;">
-  <div class="modal-content" style="max-width: 900px;">
+  <div class="modal-content" style="max-width: 1000px;">
     <div class="modal-header">
       <h3 id="modal-team-name">Team Details</h3>
       <button class="close-btn" onclick="closeTeamDetails()">&times;</button>
@@ -14,26 +13,26 @@
       <!-- Übersicht -->
       <div class="team-overview">
         <div class="stat-card">
-          <strong>Aktueller Node:</strong>
-          <span id="stat-current-node">-</span>
+          <strong>Stationen:</strong>
+          <span id="stat-stations">0</span>
         </div>
         <div class="stat-card">
-          <strong>Gelö³¹¹ste Stationen:</strong>
-          <span id="stat-solved-count">0</span>
+          <strong>Punkte:</strong>
+          <span id="stat-points">0</span>
         </div>
         <div class="stat-card">
-          <strong>Hint verwendet:</strong>
+          <strong>Hinweise:</strong>
           <span id="stat-hints">0</span>
         </div>
         <div class="stat-card">
-          <strong>Letzte Aktivitä¹¹t:</strong>
+          <strong>Letzte AktivitÃ¤t:</strong>
           <span id="stat-last-active">-</span>
         </div>
       </div>
       
-      <!-- Chat-Historie -->
+      <!-- Story-Log -->
       <section>
-        <h4>Chat-Historie</h4>
+        <h4>Story-Chat Verlauf</h4>
         <table class="data-table">
           <thead>
             <tr>
@@ -42,40 +41,45 @@
               <th>Antwort</th>
               <th>Beantwortet</th>
               <th>Status</th>
+              <th>Versuche</th>
             </tr>
           </thead>
-          <tbody id="chat-history-body">
-            <!-- Wird per JS gefä¹¹llt -->
+          <tbody id="story-log-body">
+            <!-- Wird per JS gefÃ¼llt -->
           </tbody>
         </table>
       </section>
       
-      <!-- Gelö³¹¹ste Stationen -->
+      <!-- Station Unlock Status -->
       <section>
-        <h4>Gelö³¹¹ste Stationen</h4>
+        <h4>Freigeschaltete Stationen</h4>
         <table class="data-table">
           <thead>
             <tr>
               <th>Station</th>
-              <th>Gelö³¹¹st um</th>
-              <th>Code</th>
+              <th>Freigeschaltet um</th>
+              <th>Quelle</th>
+              <th>Manuell</th>
             </tr>
           </thead>
-          <tbody id="solved-stations-body">
-            <!-- Wird per JS gefä¹¹llt -->
+          <tbody id="station-unlocks-body">
+            <!-- Wird per JS gefÃ¼llt -->
           </tbody>
         </table>
       </section>
       
       <!-- God Mode Actions -->
       <section class="god-mode-section">
-        <h4>God Mode Aktionen</h4>
+        <h4>ð¦¾¾ God Mode Aktionen</h4>
         <div class="action-buttons">
           <button class="btn btn-primary" onclick="openGodMode()">
-            God Mode ö11ffnen
+            God Mode Ãffnen
           </button>
-          <button class="btn btn-warning" onclick="resetTeam()">
-            Team zurä¹¹cksetzen
+          <button class="btn btn-warning" onclick="sendHint()">
+            Hinweis Senden
+          </button>
+          <button class="btn btn-danger" onclick="resetTeam()">
+            Team ZurÃ¼cksetzen
           </button>
         </div>
       </section>
@@ -84,37 +88,48 @@
 </div>
 
 <style>
+/* Modal Styles */
 .modal {
   position: fixed;
   top: 0; left: 0;
   width: 100%; height: 100%;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0,0,0,0.6);
   z-index: 1000;
   overflow-y: auto;
+  padding: 20px;
 }
 
 .modal-content {
   background: white;
-  margin: 50px auto;
-  padding: 20px;
-  border-radius: 8px;
-  max-width: 900px;
+  margin: 30px auto;
+  padding: 25px;
+  border-radius: 10px;
+  max-width: 1000px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.3);
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 25px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #e74c3c;
 }
 
 .close-btn {
   background: none;
   border: none;
-  font-size: 28px;
+  font-size: 32px;
   cursor: pointer;
+  color: #666;
 }
 
+.close-btn:hover {
+  color: #e74c3c;
+}
+
+/* Team Overview Cards */
 .team-overview {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -123,58 +138,144 @@
 }
 
 .stat-card {
-  background: #f5f5f5;
-  padding: 15px;
-  border-radius: 6px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  border-radius: 8px;
   text-align: center;
+  box-shadow: 0 3px 10px rgba(102, 126, 234, 0.3);
 }
 
+.stat-card strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 8px;
+  opacity: 0.9;
+}
+
+.stat-card span {
+  font-size: 28px;
+  font-weight: bold;
+}
+
+/* Data Tables */
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  margin: 15px 0;
+  margin: 20px 0;
+  font-size: 14px;
 }
 
 .data-table th, .data-table td {
-  border: 1px solid #ddd;
-  padding: 10px;
+  border: 1px solid #e0e0e0;
+  padding: 12px;
   text-align: left;
 }
 
 .data-table th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #333;
+}
+
+.data-table tr:nth-child(even) {
+  background: #fafafa;
+}
+
+.data-table tr:hover {
   background: #f0f0f0;
 }
 
+/* God Mode Section */
 .god-mode-section {
-  background: #fff3cd;
-  padding: 15px;
-  border-radius: 6px;
-  margin-top: 20px;
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  padding: 20px;
+  border-radius: 8px;
+  margin-top: 25px;
+  color: white;
+}
+
+.god-mode-section h4 {
+  margin-top: 0;
+  margin-bottom: 15px;
 }
 
 .action-buttons {
   display: flex;
-  gap: 10px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .btn {
-  padding: 10px 20px;
+  padding: 12px 24px;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
 }
 
-.btn-primary { background: #007bff; color: white; }
-.btn-warning { background: #ffc107; color: #212529; }
-.btn-danger { background: #dc3545; color: white; }
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.btn-primary { 
+  background: #2ecc71; 
+  color: white; 
+}
+
+.btn-primary:hover {
+  background: #27ae60;
+}
+
+.btn-warning { 
+  background: #f39c12; 
+  color: white; 
+}
+
+.btn-warning:hover {
+  background: #e67e22;
+}
+
+.btn-danger { 
+  background: #e74c3c; 
+  color: white; 
+}
+
+.btn-danger:hover {
+  background: #c0392b;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .modal-content {
+    margin: 10px;
+    padding: 15px;
+  }
+  
+  .team-overview {
+    grid-template-columns: 1fr;
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+  }
+  
+  .btn {
+    width: 100%;
+  }
+}
 </style>
 
 <script>
 let currentTeamId = null;
+let currentTeamName = null;
 
 async function openTeamDetails(teamId, teamName) {
   currentTeamId = teamId;
+  currentTeamName = teamName;
   document.getElementById('modal-team-name').textContent = teamName;
   document.getElementById('team-details-modal').style.display = 'block';
   
@@ -185,6 +286,7 @@ async function openTeamDetails(teamId, teamName) {
 function closeTeamDetails() {
   document.getElementById('team-details-modal').style.display = 'none';
   currentTeamId = null;
+  currentTeamName = null;
 }
 
 async function loadTeamProgress(teamId) {
@@ -198,40 +300,42 @@ async function loadTeamProgress(teamId) {
     }
     
     // Übersicht füllen
-    document.getElementById('stat-current-node').textContent = data.current_node_id || '-';
-    document.getElementById('stat-solved-count').textContent = data.solved_stations.length;
+    document.getElementById('stat-stations').textContent = data.stations_completed;
+    document.getElementById('stat-points').textContent = data.total_points;
     document.getElementById('stat-hints').textContent = data.hints_used;
-    document.getElementById('stat-last-active').textContent = data.last_active || '-';
+    document.getElementById('stat-last-active').textContent = 
+      data.last_active ? new Date(data.last_active).toLocaleString('de-DE') : '-';
     
-    // Chat-Historie füllen
-    const chatBody = document.getElementById('chat-history-body');
-    chatBody.innerHTML = '';
-    data.chat_history.forEach(row => {
+    // Story-Log füllen
+    const storyBody = document.getElementById('story-log-body');
+    storyBody.innerHTML = '';
+    data.story_log.forEach(row => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${row.node_id}</td>
-        <td>${new Date(row.received_at).toLocaleString()}</td>
-        <td>${row.answer || '-'}</td>
-        <td>${row.answered_at ? new Date(row.answered_at).toLocaleString() : '-'}</td>
+        <td>${new Date(row.delivered_at).toLocaleString('de-DE')}</td>
+        <td>${row.team_response || '-'}</td>
+        <td>${row.responded_at ? new Date(row.responded_at).toLocaleString('de-DE') : '-'}</td>
         <td>
-          ${row.is_correct === null ? '-' : 
-            (row.is_correct ? '✅ Richtig' : '❌ Falsch')}
+          ${row.is_completed ? '✅ Abgeschlossen' : '⏳ Offen'}
         </td>
+        <td>${row.attempts || 0}</td>
       `;
-      chatBody.appendChild(tr);
+      storyBody.appendChild(tr);
     });
     
-    // Gelö³¹¹ste Stationen füllen
-    const stationsBody = document.getElementById('solved-stations-body');
-    stationsBody.innerHTML = '';
-    data.solved_stations.forEach(row => {
+    // Station Unlock Status füllen
+    const unlocksBody = document.getElementById('station-unlocks-body');
+    unlocksBody.innerHTML = '';
+    data.station_unlocks.forEach(row => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${row.station_id}</td>
-        <td>${new Date(row.solved_at).toLocaleString()}</td>
-        <td><code>${row.code}</code></td>
+        <td>${row.station_id} (${row.title || ''})</td>
+        <td>${row.unlocked_at ? new Date(row.unlocked_at).toLocaleString('de-DE') : '-'}</td>
+        <td>${row.unlock_source || '-'}</td>
+        <td>${row.manually_unlocked ? '🔧 Ja' : '-'}</td>
       `;
-      stationsBody.appendChild(tr);
+      unlocksBody.appendChild(tr);
     });
     
   } catch (e) {
@@ -242,21 +346,25 @@ async function loadTeamProgress(teamId) {
 
 function openGodMode() {
   if (!currentTeamId) return;
-  window.location.href = `/admin/team/${currentTeamId}/view`;
+  window.location.href = `/admin/team_view.php?id=${currentTeamId}`;
 }
 
-async function resetTeam() {
+async function sendHint() {
   if (!currentTeamId) return;
-  if (!confirm('Team wirklich zurä¹¹cksetzen? Chat-Historie wird gelö311scht!')) return;
+  
+  const message = prompt('Hinweis an das Team senden:');
+  if (!message || !message.trim()) return;
   
   try {
-    const response = await fetch(`/api/admin/team/${currentTeamId}/reset`, {
-      method: 'POST'
+    const response = await fetch(`/api/admin/team/${currentTeamId}/send-hint`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: message})
     });
     const result = await response.json();
     
     if (result.success) {
-      alert('Team zurä¹¹ckgesetzt!');
+      alert('Hinweis gesendet!');
       await loadTeamProgress(currentTeamId);
     } else {
       alert('Fehler: ' + result.error);
@@ -264,6 +372,38 @@ async function resetTeam() {
   } catch (e) {
     console.error(e);
     alert('Netzwerkfehler');
+  }
+}
+
+async function resetTeam() {
+  if (!currentTeamId) return;
+  if (!confirm(`Team "${currentTeamName}" wirklich zurÃ¼cksetzen?\n\n- Story-Chat wird geleert\n- Stationen bleiben freigeschaltet\n- Punkte & Hinweise bleiben erhalten`)) return;
+  
+  try {
+    const response = await fetch(`/api/admin/team/${currentTeamId}/reset`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({keep_stations: true, archive_history: false})
+    });
+    const result = await response.json();
+    
+    if (result.success) {
+      alert('Team zurÃ¼ckgesetzt!');
+      await loadTeamProgress(currentTeamId);
+    } else {
+      alert('Fehler: ' + result.error);
+    }
+  } catch (e) {
+    console.error(e);
+    alert('Netzwerkfehler');
+  }
+}
+
+// Modal schlieÃ½en bei Klick auÃ½erhalb
+window.onclick = function(event) {
+  const modal = document.getElementById('team-details-modal');
+  if (event.target === modal) {
+    closeTeamDetails();
   }
 }
 </script>
