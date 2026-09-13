@@ -2,6 +2,9 @@
 -- Datum: 2026-09-13
 -- Beschreibung: Tabellen für Team-Fortschritt, Chat-Historie und Admin-Aktionen
 
+-- HINWEIS: Foreign Keys wurden entfernt, um errno:150 zu vermeiden
+-- Falls FKs gewünscht sind, müssen Typen/Collation der referenzierten Tabellen geprüft werden
+
 -- 1. Chat-Historie pro Team
 CREATE TABLE IF NOT EXISTS team_chat_history (
   id INT PRIMARY KEY AUTO_INCREMENT,
@@ -13,9 +16,7 @@ CREATE TABLE IF NOT EXISTS team_chat_history (
   is_correct TINYINT(1) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_team (team_id),
-  INDEX idx_node (node_id),
-  FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
-  FOREIGN KEY (node_id) REFERENCES chat_nodes(id) ON DELETE CASCADE
+  INDEX idx_node (node_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 2. Admin-Aktionen loggen
@@ -28,9 +29,7 @@ CREATE TABLE IF NOT EXISTS admin_actions (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_admin (admin_user_id),
   INDEX idx_team (team_id),
-  INDEX idx_created (created_at),
-  FOREIGN KEY (admin_user_id) REFERENCES admin_users(id) ON DELETE CASCADE,
-  FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+  INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 3. team_stations: Spalte für manuell freigeschaltet
