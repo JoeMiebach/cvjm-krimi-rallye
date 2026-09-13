@@ -5,12 +5,17 @@
 // wurde entfernt -- das Legacy-Ermittlungsakte-System (team_story_clues)
 // wurde vollstaendig zugunsten des Ermittler-Chat-Systems entfernt. Das
 // Backend (puzzles/submit.php) liefert kein story_clue-Feld mehr im Response.
+// GEAENDERT (13.09.2026): Offline-Unterstuetzung ergaenzt -- bei Netzwerkfehler
+// (ApiError.status === 0) wird die Raetsel-Antwort in die IndexedDB-Warteschlange
+// gelegt (siehe offline/queue.js) und beim naechsten 'online'-Event automatisch
+// erneut gesendet, analog zum bestehenden Muster in ChatScreen.jsx.
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api } from '../api/client';
+import { api, ApiError } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useGameStatus } from '../context/GameStatusContext';
 import { useGeofence } from '../context/GeofenceContext';
+import { queueAction, flushQueue } from '../offline/queue';
 import BottomNav from '../components/BottomNav';
 import QrScanner from '../components/QrScanner';
 import StationCompass from '../components/StationCompass';
@@ -75,6 +80,18 @@ export default function PuzzlesScreen() {
   }, [id, loadStation, loadPuzzles, setOnStationUnlocked]);
 
 
+  // Offline-Warteschlange leeren, sobald die Verbindung wiederhergestellt ist.
+  useEffect(() => {
+    function handleOnline() {
+      flushQueue({
+        submitAnswer: api.submitAnswer
+      }).then(loadPuzzles);
+    }
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [loadPuzzles]);
+
+
   async function handleScanSuccess(decodedText) {
     setScannerActive(false);
     setUnlocking(true);
@@ -94,14 +111,22 @@ export default function PuzzlesScreen() {
   async function handleSubmit(puzzleId, providedAnswer) {
     if (!canAct) return;
     const answer = providedAnswer !== undefined ? providedAnswer : answers[puzzleId] || '';
+    const hintUsed = !!hintRequestedFor[puzzleId];
     try {
-      const hintUsed = !!hintRequestedFor[puzzleId];
       const result = await api.submitAnswer(puzzleId, answer, hintUsed);
       setFeedback((prev) => ({ ...prev, [puzzleId]: result.message }));
       if (result.is_correct) await loadPuzzles();
       if (hintUsed) setHintRequestedFor((prev) => ({ ...prev, [puzzleId]: false }));
     } catch (err) {
-      setFeedback((prev) => ({ ...prev, [puzzleId]: err.message }));
+      if (err instanceof ApiError && err.status === 0) {
+        await queueAction({ type: 'answer', puzzleId, answer, hintUsed });
+        setFeedback((prev) => ({
+          ...prev,
+          [puzzleId]: 'Keine Verbindung -- Antwort wird automatisch gesendet, sobald ihr wieder online seid.'
+        }));
+      } else {
+        setFeedback((prev) => ({ ...prev, [puzzleId]: err.message }));
+      }
     }
   }
 

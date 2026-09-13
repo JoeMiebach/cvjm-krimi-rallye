@@ -5,6 +5,9 @@
 // und sendet sie bei Wiederverbindung ueber die bestehenden api-Funktionen
 // (respondToChat, submitPhoto) erneut -- es gibt bewusst KEINEN eigenen
 // Backend-Sync-Endpunkt, um keine unverifizierten Server-Signaturen zu raten.
+// GEAENDERT (13.09.2026): Aktionstyp 'answer' ergaenzt -- deckt jetzt auch
+// klassische Raetsel-Antworten (puzzles/submit.php) ab, nicht mehr nur
+// Chat-Antworten und Foto-Uploads. Siehe PuzzlesScreen.jsx.
 const DB_NAME = 'ermittler_offline_queue';
 const STORE_NAME = 'actions';
 const DB_VERSION = 1;
@@ -54,7 +57,9 @@ export async function removeQueuedAction(id) {
 }
 
 // Sendet alle wartenden Aktionen erneut. handlers ist ein Objekt mit
-// { respondToChat: (nodeId, response) => Promise, submitPhoto: (nodeId, file) => Promise }.
+// { respondToChat: (nodeId, response) => Promise,
+//   submitPhoto: (nodeId, file) => Promise,
+//   submitAnswer: (puzzleId, answer, hintUsed) => Promise }.
 // Wird typischerweise beim 'online'-Browser-Event aufgerufen.
 export async function flushQueue(handlers) {
   const actions = await getQueuedActions();
@@ -64,6 +69,8 @@ export async function flushQueue(handlers) {
         await handlers.respondToChat(action.nodeId, action.response);
       } else if (action.type === 'photo') {
         await handlers.submitPhoto(action.nodeId, action.file);
+      } else if (action.type === 'answer' && handlers.submitAnswer) {
+        await handlers.submitAnswer(action.puzzleId, action.answer, action.hintUsed);
       }
       await removeQueuedAction(action.id);
     } catch {
